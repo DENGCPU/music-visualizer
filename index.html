@@ -6,7 +6,6 @@
   <title>Particle Music Visualizer</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-
     body {
       background: #000;
       overflow: hidden;
@@ -15,153 +14,182 @@
       height: 100vh;
       touch-action: none;
     }
-
     canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
 
+    /* Vinyl Overlay */
     #overlay {
       position: fixed; inset: 0;
-      background: rgba(0, 0, 0, 0.92);
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
+      background: #000;
+      display: flex; align-items: center; justify-content: center;
       z-index: 100; cursor: pointer;
-      transition: opacity 0.6s ease;
+      transition: opacity 0.8s ease;
     }
     #overlay.hidden { opacity: 0; pointer-events: none; }
-    #overlay h1 {
-      font-size: clamp(1.5rem, 5vw, 2.5rem);
-      margin-bottom: 0.8rem;
-      background: linear-gradient(135deg, #0ff, #f0f, #ff0, #0ff);
-      background-size: 300% 300%;
-      animation: gradientShift 4s ease infinite;
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+    .vinyl-container { position: relative; width: 280px; height: 280px; }
+    .vinyl-record {
+      width: 100%; height: 100%;
+      border-radius: 50%;
+      background: radial-gradient(circle at 50% 50%,
+        #111 0%, #111 15%,
+        #1a1a1a 15%, #222 17%,
+        #0a0a0a 17%, #1a1a1a 19%,
+        #111 19%, #181818 30%,
+        #0f0f0f 30%, #1a1a1a 32%,
+        #111 32%, #161616 50%,
+        #0d0d0d 50%, #1a1a1a 52%,
+        #111 52%, #151515 70%,
+        #0a0a0a 70%, #1a1a1a 72%,
+        #111 72%, #141414 90%,
+        #222 90%, #333 92%,
+        #111 92%, #000 100%
+      );
+      box-shadow: 0 0 60px rgba(100, 50, 255, 0.3), inset 0 0 30px rgba(0,0,0,0.8);
+      animation: vinylSpin 3s linear infinite;
     }
-    #overlay p { color: #666; font-size: 0.9rem; }
-    @keyframes gradientShift {
-      0%, 100% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
+    .vinyl-label {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80px; height: 80px; border-radius: 50%;
+      background: radial-gradient(circle, #333 30%, #f0a 50%, #60f 80%, #222 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px; font-weight: bold; color: rgba(255,255,255,0.7);
+      text-transform: uppercase; letter-spacing: 1px;
+    }
+    .vinyl-tonearm {
+      position: absolute; top: -10px; right: -30px;
+      width: 120px; height: 4px;
+      background: linear-gradient(90deg, #555, #888);
+      transform-origin: right center;
+      transform: rotate(-25deg);
+      transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+      border-radius: 2px;
+    }
+    .vinyl-tonearm::after {
+      content: ''; position: absolute; left: -4px; top: -3px;
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #aaa; border: 2px solid #666;
+    }
+    .vinyl-tonearm.dropped { transform: rotate(-5deg); }
+    .vinyl-hint {
+      position: absolute; bottom: -50px; left: 50%;
+      transform: translateX(-50%);
+      color: #555; font-size: 12px; white-space: nowrap;
+    }
+    @keyframes vinylSpin { to { transform: rotate(360deg); } }
+
+    /* DJ Turntable Control */
+    #turntable {
+      position: fixed; bottom: 20px; right: 20px;
+      width: 64px; height: 64px; z-index: 80;
+      cursor: pointer; transition: transform 0.2s;
+    }
+    #turntable:hover { transform: scale(1.1); }
+    .turntable-disc {
+      width: 100%; height: 100%; border-radius: 50%;
+      background: radial-gradient(circle, #222 20%, #111 40%, #1a1a1a 60%, #0a0a0a 100%);
+      border: 2px solid rgba(255,255,255,0.1);
+      box-shadow: 0 0 20px rgba(100, 50, 255, 0.4);
+      transition: box-shadow 0.3s;
+    }
+    .turntable-dot {
+      position: absolute; top: 12px; left: 50%;
+      transform: translateX(-50%);
+      width: 4px; height: 4px; border-radius: 50%;
+      background: #f0a;
+    }
+    #turntable.open .turntable-disc {
+      box-shadow: 0 0 30px rgba(255, 50, 200, 0.6);
     }
 
-    #controls {
-      position: fixed; bottom: 0; left: 0; right: 0;
-      padding: 10px 16px;
-      background: rgba(0, 0, 0, 0.75);
-      backdrop-filter: blur(12px);
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
-      display: flex; align-items: center; gap: 8px;
-      z-index: 50; flex-wrap: wrap;
-      transition: transform 0.3s ease;
+    /* Arc Menu */
+    .arc-menu {
+      position: fixed; bottom: 20px; right: 20px;
+      width: 300px; height: 300px;
+      pointer-events: none; z-index: 79;
+      opacity: 0; transition: opacity 0.3s;
     }
-    #controls.hidden { transform: translateY(100%); }
-
-    .btn {
-      background: rgba(255, 255, 255, 0.08);
+    .arc-menu.open { opacity: 1; pointer-events: auto; }
+    .arc-item {
+      position: absolute;
+      background: rgba(20, 10, 40, 0.9);
       border: 1px solid rgba(255, 255, 255, 0.15);
-      color: #ccc; padding: 7px 14px;
-      border-radius: 6px; cursor: pointer;
-      font-size: 12px; transition: all 0.2s;
+      backdrop-filter: blur(8px);
+      color: #ccc; padding: 6px 12px;
+      border-radius: 20px; font-size: 11px;
+      cursor: pointer; transition: all 0.2s;
       white-space: nowrap;
     }
-    .btn:hover { background: rgba(255, 255, 255, 0.15); color: #fff; }
-    .btn.active { background: rgba(0, 255, 255, 0.15); border-color: #0ff; color: #0ff; }
-
-    .mode-list { display: flex; gap: 4px; margin-left: auto; }
-    .mode-btn {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      color: #888; padding: 5px 10px;
-      border-radius: 4px; cursor: pointer;
-      font-size: 11px; transition: all 0.2s;
+    .arc-item:hover { background: rgba(255, 50, 200, 0.2); border-color: #f0a; color: #fff; }
+    .arc-item.active { border-color: #f0a; color: #f0a; }
+    .arc-item[data-type="track"], .arc-item[data-type="upload"] {
+      border-radius: 6px;
+      background: rgba(0, 20, 40, 0.9);
+      border-color: rgba(0, 200, 255, 0.25);
     }
-    .mode-btn:hover { color: #fff; border-color: rgba(255, 255, 255, 0.3); }
-    .mode-btn.active { color: #0ff; border-color: #0ff; background: rgba(0, 255, 255, 0.1); }
-
-    .track-list { display: flex; gap: 4px; }
-    .track-btn {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      color: #888; padding: 5px 10px;
-      border-radius: 4px; cursor: pointer;
-      font-size: 11px; transition: all 0.2s;
+    .arc-item[data-type="track"]:hover, .arc-item[data-type="upload"]:hover {
+      background: rgba(0, 200, 255, 0.15); border-color: #0cf; color: #fff;
     }
-    .track-btn:hover { color: #fff; border-color: rgba(255, 255, 255, 0.3); }
-    .track-btn.active { color: #f0f; border-color: #f0f; background: rgba(255, 0, 255, 0.1); }
-
-    #textInput {
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      color: #fff; padding: 7px 10px;
-      border-radius: 6px; font-size: 12px;
-      width: 120px; outline: none;
+    .arc-item[data-type="track"].active { border-color: #0cf; color: #0cf; }
+    .arc-separator {
+      position: absolute; color: rgba(255,255,255,0.3);
+      font-size: 9px; text-transform: uppercase; letter-spacing: 1px;
     }
-    #textInput:focus { border-color: #0ff; }
+
+    /* Upload button (hidden file input) */
     #fileInput { display: none; }
-
-    #dropZone {
-      position: fixed; inset: 0;
-      background: rgba(0, 255, 255, 0.08);
-      border: 3px dashed rgba(0, 255, 255, 0.5);
-      display: none; align-items: center; justify-content: center;
-      z-index: 90; font-size: 1.2rem; color: #0ff;
+    #textInput {
+      position: fixed; top: 16px; left: 16px;
+      background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.1);
+      color: #fff; padding: 6px 10px; border-radius: 16px;
+      font-size: 11px; width: 100px; outline: none; z-index: 60;
+      opacity: 0.4; transition: opacity 0.3s;
     }
-    #dropZone.visible { display: flex; }
+    #textInput:focus { opacity: 1; border-color: rgba(255,50,200,0.5); }
 
+    /* Mode hint */
     #modeHint {
-      position: fixed; top: 16px; left: 50%;
-      transform: translateX(-50%);
-      font-size: 13px; color: rgba(255, 255, 255, 0.5);
-      z-index: 50; transition: opacity 0.5s;
-      pointer-events: none;
+      position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+      font-size: 12px; color: rgba(255,255,255,0.4); z-index: 60;
+      pointer-events: none; transition: opacity 0.6s;
     }
     #modeHint.fade { opacity: 0; }
 
-    #navHint {
-      position: fixed; bottom: 70px; left: 50%;
-      transform: translateX(-50%);
-      font-size: 11px; color: rgba(255, 255, 255, 0.3);
-      z-index: 50; pointer-events: none;
+    /* Drop zone */
+    #dropZone {
+      position: fixed; inset: 0;
+      background: rgba(255, 50, 200, 0.08);
+      border: 3px dashed rgba(255, 50, 200, 0.5);
+      display: none; align-items: center; justify-content: center;
+      z-index: 90; font-size: 1.2rem; color: #f0a;
     }
-
-    @media (max-width: 600px) {
-      #controls { padding: 8px 10px; gap: 6px; }
-      .btn { padding: 6px 10px; font-size: 11px; }
-      #textInput { width: 80px; }
-      .mode-btn, .track-btn { padding: 4px 7px; font-size: 10px; }
-    }
+    #dropZone.visible { display: flex; }
   </style>
 </head>
 <body>
+  <!-- Vinyl Start Overlay -->
   <div id="overlay">
-    <h1>Particle Music Visualizer</h1>
-    <p>Tap anywhere to start</p>
+    <div class="vinyl-container">
+      <div class="vinyl-record"></div>
+      <div class="vinyl-label">PLAY</div>
+      <div class="vinyl-tonearm"></div>
+      <div class="vinyl-hint">tap to drop the needle</div>
+    </div>
   </div>
 
   <div id="dropZone">Drop audio file here</div>
   <canvas id="canvas"></canvas>
   <div id="modeHint"></div>
-  <div id="navHint"></div>
+  <input type="text" id="textInput" placeholder="Text..." value="MUSIC">
+  <input type="file" id="fileInput" accept="audio/*">
 
-  <div id="controls">
-    <button class="btn" id="playBtn">&#9654; Play</button>
-    <button class="btn" id="uploadBtn">Upload</button>
-    <input type="file" id="fileInput" accept="audio/*">
-    <input type="text" id="textInput" placeholder="Text..." value="MUSIC">
-    <div class="track-list">
-      <button class="track-btn active" data-track="0">Lo-fi</button>
-      <button class="track-btn" data-track="1">Glitch</button>
-      <button class="track-btn" data-track="2">Psy</button>
-      <button class="track-btn" data-track="3">Dubstep</button>
-    </div>
-    <div class="mode-list">
-      <button class="mode-btn active" data-mode="0">Text</button>
-      <button class="mode-btn" data-mode="1">Ring</button>
-      <button class="mode-btn" data-mode="2">Galaxy</button>
-      <button class="mode-btn" data-mode="3">Wave</button>
-      <button class="mode-btn" data-mode="4">Fluid</button>
-      <button class="mode-btn" data-mode="5">Code</button>
-    </div>
+  <!-- DJ Turntable -->
+  <div id="turntable">
+    <div class="turntable-disc"></div>
+    <div class="turntable-dot"></div>
   </div>
+
+  <!-- Arc Menu -->
+  <div class="arc-menu" id="arcMenu"></div>
 
   <script>
   (() => {
@@ -170,17 +198,10 @@
     // ============================================================
     class AudioEngine {
       constructor() {
-        this.ctx = null;
-        this.analyser = null;
-        this.freqData = null;
-        this.timeData = null;
-        this.source = null;
-        this.isPlaying = false;
-        this.currentTrack = 0;
-        this.gainNode = null;
-        this.oscillators = [];
+        this.ctx = null; this.analyser = null; this.freqData = null; this.timeData = null;
+        this.source = null; this.isPlaying = false; this.currentTrack = 0;
+        this.gainNode = null; this.oscillators = [];
       }
-
       init() {
         this.ctx = new (window.AudioContext || window.webkitAudioContext)();
         this.analyser = this.ctx.createAnalyser();
@@ -192,1346 +213,587 @@
         this.gainNode.connect(this.analyser);
         this.analyser.connect(this.ctx.destination);
       }
-
       getFrequencyBands() {
         if (!this.analyser) return { low: 0, mid: 0, high: 0, raw: [], waveform: [] };
         this.analyser.getByteFrequencyData(this.freqData);
         this.analyser.getByteTimeDomainData(this.timeData);
-        const len = this.freqData.length;
-        const third = Math.floor(len / 3);
+        const len = this.freqData.length, third = Math.floor(len / 3);
         let low = 0, mid = 0, high = 0;
         for (let i = 0; i < third; i++) low += this.freqData[i];
         for (let i = third; i < third * 2; i++) mid += this.freqData[i];
         for (let i = third * 2; i < len; i++) high += this.freqData[i];
-        low = low / third / 255;
-        mid = mid / third / 255;
-        high = high / (len - third * 2) / 255;
+        low = low / third / 255; mid = mid / third / 255; high = high / (len - third * 2) / 255;
         return { low, mid, high, raw: this.freqData, waveform: this.timeData };
       }
-
-      playBuiltinTrack(trackIndex) {
-        this.stop();
-        this.currentTrack = trackIndex;
-        const tempo = [85, 140, 145, 140][trackIndex];
-        const beatInterval = 60 / tempo;
-        switch (trackIndex) {
-          case 0: this._lofi(beatInterval); break;
-          case 1: this._glitch(beatInterval); break;
-          case 2: this._psytrance(beatInterval); break;
-          case 3: this._dubstep(beatInterval); break;
-        }
+      playBuiltinTrack(idx) {
+        this.stop(); this.currentTrack = idx;
+        const tempo = [85, 140, 145, 140][idx];
+        const beat = 60 / tempo;
+        [this._lofi, this._glitch, this._psytrance, this._dubstep][idx].call(this, beat);
         this.isPlaying = true;
       }
-
-      // Lo-fi Hip Hop: muffled kick, vinyl crackle, jazz chords, slow swing
       _lofi(beat) {
-        const now = this.ctx.currentTime;
-        const duration = 24;
-
-        const scheduleKick = (time) => {
-          const osc = this.ctx.createOscillator();
-          const filter = this.ctx.createBiquadFilter();
-          const gain = this.ctx.createGain();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(100, time);
-          osc.frequency.exponentialRampToValueAtTime(35, time + 0.12);
-          filter.type = 'lowpass'; filter.frequency.value = 200;
-          gain.gain.setValueAtTime(0.7, time);
-          gain.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
-          osc.connect(filter); filter.connect(gain); gain.connect(this.gainNode);
-          osc.start(time); osc.stop(time + 0.3);
-          this.oscillators.push(osc);
-        };
-
-        const scheduleSnare = (time) => {
-          const bufferSize = this.ctx.sampleRate * 0.12;
-          const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-          const data = buffer.getChannelData(0);
-          for (let i = 0; i < bufferSize; i++) {
-            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.2));
-          }
-          const noise = this.ctx.createBufferSource();
-          noise.buffer = buffer;
-          const filter = this.ctx.createBiquadFilter();
-          filter.type = 'lowpass'; filter.frequency.value = 3000;
-          const gain = this.ctx.createGain();
-          gain.gain.setValueAtTime(0.35, time);
-          gain.gain.exponentialRampToValueAtTime(0.001, time + 0.12);
-          noise.connect(filter); filter.connect(gain); gain.connect(this.gainNode);
-          noise.start(time); noise.stop(time + 0.12);
-        };
-
-        const scheduleHihat = (time) => {
-          const bufferSize = this.ctx.sampleRate * 0.03;
-          const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-          const data = buffer.getChannelData(0);
-          for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.4));
-          const noise = this.ctx.createBufferSource();
-          noise.buffer = buffer;
-          const filter = this.ctx.createBiquadFilter();
-          filter.type = 'bandpass'; filter.frequency.value = 6000; filter.Q.value = 1;
-          const gain = this.ctx.createGain();
-          gain.gain.setValueAtTime(0.15, time);
-          gain.gain.exponentialRampToValueAtTime(0.001, time + 0.03);
-          noise.connect(filter); filter.connect(gain); gain.connect(this.gainNode);
-          noise.start(time); noise.stop(time + 0.03);
-        };
-
-        const scheduleChord = (time, freqs) => {
-          for (const freq of freqs) {
-            const osc = this.ctx.createOscillator();
-            const filter = this.ctx.createBiquadFilter();
-            const gain = this.ctx.createGain();
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(freq, time);
-            filter.type = 'lowpass'; filter.frequency.value = 1200;
-            gain.gain.setValueAtTime(0, time);
-            gain.gain.linearRampToValueAtTime(0.06, time + 0.05);
-            gain.gain.exponentialRampToValueAtTime(0.001, time + beat * 3.5);
-            osc.connect(filter); filter.connect(gain); gain.connect(this.gainNode);
-            osc.start(time); osc.stop(time + beat * 4);
-            this.oscillators.push(osc);
-          }
-        };
-
-        const scheduleVinyl = (time, dur) => {
-          const bufferSize = Math.floor(this.ctx.sampleRate * dur);
-          const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-          const data = buffer.getChannelData(0);
-          for (let i = 0; i < bufferSize; i++) {
-            data[i] = (Math.random() * 2 - 1) * 0.015;
-            if (Math.random() < 0.001) data[i] += (Math.random() - 0.5) * 0.3;
-          }
-          const noise = this.ctx.createBufferSource();
-          noise.buffer = buffer;
-          const filter = this.ctx.createBiquadFilter();
-          filter.type = 'bandpass'; filter.frequency.value = 1000; filter.Q.value = 0.5;
-          const gain = this.ctx.createGain();
-          gain.gain.setValueAtTime(0.4, time);
-          noise.connect(filter); filter.connect(gain); gain.connect(this.gainNode);
-          noise.start(time); noise.stop(time + dur);
-        };
-
-        // jazz chords: Cmaj7, Dm7, Em7, Fmaj7
-        const chords = [
-          [261.63, 329.63, 392.00, 493.88],
-          [293.66, 349.23, 440.00, 523.25],
-          [329.63, 392.00, 493.88, 587.33],
-          [349.23, 440.00, 523.25, 659.25],
-        ];
-
-        // vinyl crackle for entire duration
-        scheduleVinyl(now, duration);
-
-        const swing = beat * 0.08;
-        const steps = Math.floor(duration / beat);
-        for (let i = 0; i < steps; i++) {
-          const time = now + i * beat;
-          const swung = (i % 2 === 1) ? time + swing : time;
-          if (i % 4 === 0) scheduleKick(time);
-          if (i % 4 === 2) scheduleSnare(time);
-          scheduleHihat(swung);
-          if (i % 8 === 0) scheduleChord(time, chords[Math.floor(i / 8) % chords.length]);
-        }
-
-        this._loopTimeout = setTimeout(() => {
-          if (this.isPlaying && this.currentTrack === 0) this._lofi(beat);
-        }, duration * 1000);
+        const now = this.ctx.currentTime, dur = 24;
+        const kick = (t) => { const o = this.ctx.createOscillator(), f = this.ctx.createBiquadFilter(), g = this.ctx.createGain(); o.type='sine'; o.frequency.setValueAtTime(100,t); o.frequency.exponentialRampToValueAtTime(35,t+0.12); f.type='lowpass'; f.frequency.value=200; g.gain.setValueAtTime(0.7,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.3); o.connect(f); f.connect(g); g.connect(this.gainNode); o.start(t); o.stop(t+0.3); this.oscillators.push(o); };
+        const snare = (t) => { const bs=this.ctx.sampleRate*0.12, buf=this.ctx.createBuffer(1,bs,this.ctx.sampleRate), d=buf.getChannelData(0); for(let i=0;i<bs;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/(bs*0.2)); const n=this.ctx.createBufferSource(); n.buffer=buf; const f=this.ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=3000; const g=this.ctx.createGain(); g.gain.setValueAtTime(0.35,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.12); n.connect(f); f.connect(g); g.connect(this.gainNode); n.start(t); n.stop(t+0.12); };
+        const hh = (t) => { const bs=this.ctx.sampleRate*0.03, buf=this.ctx.createBuffer(1,bs,this.ctx.sampleRate), d=buf.getChannelData(0); for(let i=0;i<bs;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/(bs*0.4)); const n=this.ctx.createBufferSource(); n.buffer=buf; const f=this.ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=6000; f.Q.value=1; const g=this.ctx.createGain(); g.gain.setValueAtTime(0.15,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.03); n.connect(f); f.connect(g); g.connect(this.gainNode); n.start(t); n.stop(t+0.03); };
+        const chord = (t, freqs) => { for(const fr of freqs){const o=this.ctx.createOscillator(),f=this.ctx.createBiquadFilter(),g=this.ctx.createGain(); o.type='triangle'; o.frequency.setValueAtTime(fr,t); f.type='lowpass'; f.frequency.value=1200; g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.06,t+0.05); g.gain.exponentialRampToValueAtTime(0.001,t+beat*3.5); o.connect(f); f.connect(g); g.connect(this.gainNode); o.start(t); o.stop(t+beat*4); this.oscillators.push(o);} };
+        const vinyl = (t, d2) => { const bs=Math.floor(this.ctx.sampleRate*d2), buf=this.ctx.createBuffer(1,bs,this.ctx.sampleRate), d=buf.getChannelData(0); for(let i=0;i<bs;i++){d[i]=(Math.random()*2-1)*0.015; if(Math.random()<0.001) d[i]+=(Math.random()-0.5)*0.3;} const n=this.ctx.createBufferSource(); n.buffer=buf; const f=this.ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=1000; f.Q.value=0.5; const g=this.ctx.createGain(); g.gain.setValueAtTime(0.4,t); n.connect(f); f.connect(g); g.connect(this.gainNode); n.start(t); n.stop(t+d2); };
+        const chords=[[261.63,329.63,392,493.88],[293.66,349.23,440,523.25],[329.63,392,493.88,587.33],[349.23,440,523.25,659.25]];
+        vinyl(now, dur);
+        const sw=beat*0.08, steps=Math.floor(dur/beat);
+        for(let i=0;i<steps;i++){const t=now+i*beat, s=(i%2===1)?t+sw:t; if(i%4===0)kick(t); if(i%4===2)snare(t); hh(s); if(i%8===0)chord(t,chords[Math.floor(i/8)%4]);}
+        this._loopTimeout=setTimeout(()=>{if(this.isPlaying&&this.currentTrack===0)this._lofi(beat);},dur*1000);
       }
-
-      // Glitch: random micro-cuts, pitch-shifted bursts, stutter patterns
       _glitch(beat) {
-        const now = this.ctx.currentTime;
-        const duration = 12;
-        const step = beat / 4; // 16th notes
-
-        const scheduleGlitchHit = (time) => {
-          const osc = this.ctx.createOscillator();
-          const gain = this.ctx.createGain();
-          const types = ['square', 'sawtooth', 'triangle'];
-          osc.type = types[Math.floor(Math.random() * 3)];
-          const freq = 80 + Math.random() * 2000;
-          osc.frequency.setValueAtTime(freq, time);
-          osc.frequency.exponentialRampToValueAtTime(freq * (0.5 + Math.random()), time + step * 0.8);
-          const vol = 0.1 + Math.random() * 0.2;
-          gain.gain.setValueAtTime(vol, time);
-          gain.gain.exponentialRampToValueAtTime(0.001, time + step * (0.3 + Math.random() * 0.5));
-          osc.connect(gain); gain.connect(this.gainNode);
-          osc.start(time); osc.stop(time + step);
-          this.oscillators.push(osc);
-        };
-
-        const scheduleNoiseBurst = (time) => {
-          const len = step * (0.2 + Math.random() * 0.6);
-          const bufferSize = Math.floor(this.ctx.sampleRate * len);
-          const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-          const data = buffer.getChannelData(0);
-          for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.5));
-          const noise = this.ctx.createBufferSource();
-          noise.buffer = buffer;
-          const filter = this.ctx.createBiquadFilter();
-          filter.type = Math.random() > 0.5 ? 'highpass' : 'bandpass';
-          filter.frequency.value = 500 + Math.random() * 8000;
-          filter.Q.value = 1 + Math.random() * 10;
-          const gain = this.ctx.createGain();
-          gain.gain.setValueAtTime(0.2 + Math.random() * 0.15, time);
-          gain.gain.exponentialRampToValueAtTime(0.001, time + len);
-          noise.connect(filter); filter.connect(gain); gain.connect(this.gainNode);
-          noise.start(time); noise.stop(time + len);
-        };
-
-        const scheduleKick = (time) => {
-          const osc = this.ctx.createOscillator();
-          const gain = this.ctx.createGain();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(180, time);
-          osc.frequency.exponentialRampToValueAtTime(30, time + 0.06);
-          gain.gain.setValueAtTime(0.8, time);
-          gain.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
-          osc.connect(gain); gain.connect(this.gainNode);
-          osc.start(time); osc.stop(time + 0.15);
-          this.oscillators.push(osc);
-        };
-
-        const scheduleStutter = (time, freq) => {
-          const repeats = 2 + Math.floor(Math.random() * 4);
-          const gap = step / repeats;
-          for (let r = 0; r < repeats; r++) {
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(freq, time + r * gap);
-            gain.gain.setValueAtTime(0.2, time + r * gap);
-            gain.gain.exponentialRampToValueAtTime(0.001, time + r * gap + gap * 0.7);
-            osc.connect(gain); gain.connect(this.gainNode);
-            osc.start(time + r * gap); osc.stop(time + r * gap + gap * 0.7);
-            this.oscillators.push(osc);
-          }
-        };
-
-        const totalSteps = Math.floor(duration / step);
-        for (let i = 0; i < totalSteps; i++) {
-          const time = now + i * step;
-          const r = Math.random();
-          if (i % 16 === 0) scheduleKick(time);
-          else if (i % 16 === 8) scheduleKick(time);
-          if (r < 0.3) scheduleGlitchHit(time);
-          else if (r < 0.5) scheduleNoiseBurst(time);
-          else if (r < 0.6) scheduleStutter(time, 200 + Math.random() * 800);
-        }
-
-        this._loopTimeout = setTimeout(() => {
-          if (this.isPlaying && this.currentTrack === 1) this._glitch(beat);
-        }, duration * 1000);
+        const now=this.ctx.currentTime, dur=12, step=beat/4;
+        const hit=(t)=>{const o=this.ctx.createOscillator(),g=this.ctx.createGain(); o.type=['square','sawtooth','triangle'][Math.floor(Math.random()*3)]; const fr=80+Math.random()*2000; o.frequency.setValueAtTime(fr,t); o.frequency.exponentialRampToValueAtTime(fr*(0.5+Math.random()),t+step*0.8); g.gain.setValueAtTime(0.1+Math.random()*0.2,t); g.gain.exponentialRampToValueAtTime(0.001,t+step*(0.3+Math.random()*0.5)); o.connect(g); g.connect(this.gainNode); o.start(t); o.stop(t+step); this.oscillators.push(o);};
+        const nb=(t)=>{const len=step*(0.2+Math.random()*0.6), bs=Math.floor(this.ctx.sampleRate*len), buf=this.ctx.createBuffer(1,bs,this.ctx.sampleRate), d=buf.getChannelData(0); for(let i=0;i<bs;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/(bs*0.5)); const n=this.ctx.createBufferSource(); n.buffer=buf; const f=this.ctx.createBiquadFilter(); f.type=Math.random()>0.5?'highpass':'bandpass'; f.frequency.value=500+Math.random()*8000; f.Q.value=1+Math.random()*10; const g=this.ctx.createGain(); g.gain.setValueAtTime(0.2+Math.random()*0.15,t); g.gain.exponentialRampToValueAtTime(0.001,t+len); n.connect(f); f.connect(g); g.connect(this.gainNode); n.start(t); n.stop(t+len);};
+        const kick=(t)=>{const o=this.ctx.createOscillator(),g=this.ctx.createGain(); o.type='sine'; o.frequency.setValueAtTime(180,t); o.frequency.exponentialRampToValueAtTime(30,t+0.06); g.gain.setValueAtTime(0.8,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.15); o.connect(g); g.connect(this.gainNode); o.start(t); o.stop(t+0.15); this.oscillators.push(o);};
+        const stutter=(t,fr)=>{const reps=2+Math.floor(Math.random()*4),gap=step/reps; for(let r=0;r<reps;r++){const o=this.ctx.createOscillator(),g=this.ctx.createGain(); o.type='square'; o.frequency.setValueAtTime(fr,t+r*gap); g.gain.setValueAtTime(0.2,t+r*gap); g.gain.exponentialRampToValueAtTime(0.001,t+r*gap+gap*0.7); o.connect(g); g.connect(this.gainNode); o.start(t+r*gap); o.stop(t+r*gap+gap*0.7); this.oscillators.push(o);}};
+        const total=Math.floor(dur/step);
+        for(let i=0;i<total;i++){const t=now+i*step,r=Math.random(); if(i%16===0||i%16===8)kick(t); if(r<0.3)hit(t); else if(r<0.5)nb(t); else if(r<0.6)stutter(t,200+Math.random()*800);}
+        this._loopTimeout=setTimeout(()=>{if(this.isPlaying&&this.currentTrack===1)this._glitch(beat);},dur*1000);
       }
-
-      // Psytrance: fast 16th acid bassline, steady kick, layered rising arps
       _psytrance(beat) {
-        const now = this.ctx.currentTime;
-        const duration = 16;
-        const sixteenth = beat / 4;
-
-        const scheduleKick = (time) => {
-          const osc = this.ctx.createOscillator();
-          const gain = this.ctx.createGain();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(150, time);
-          osc.frequency.exponentialRampToValueAtTime(40, time + 0.05);
-          gain.gain.setValueAtTime(0.85, time);
-          gain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
-          osc.connect(gain); gain.connect(this.gainNode);
-          osc.start(time); osc.stop(time + 0.2);
-          this.oscillators.push(osc);
-        };
-
-        const scheduleBassline = (time, freq) => {
-          const osc = this.ctx.createOscillator();
-          const filter = this.ctx.createBiquadFilter();
-          const gain = this.ctx.createGain();
-          osc.type = 'sawtooth';
-          osc.frequency.setValueAtTime(freq, time);
-          filter.type = 'lowpass';
-          filter.frequency.setValueAtTime(300, time);
-          filter.frequency.exponentialRampToValueAtTime(4000, time + sixteenth * 0.2);
-          filter.frequency.exponentialRampToValueAtTime(300, time + sixteenth * 0.8);
-          filter.Q.value = 12;
-          gain.gain.setValueAtTime(0.25, time);
-          gain.gain.linearRampToValueAtTime(0, time + sixteenth * 0.85);
-          osc.connect(filter); filter.connect(gain); gain.connect(this.gainNode);
-          osc.start(time); osc.stop(time + sixteenth);
-          this.oscillators.push(osc);
-        };
-
-        const scheduleArp = (time, freq) => {
-          const osc = this.ctx.createOscillator();
-          const gain = this.ctx.createGain();
-          osc.type = 'triangle';
-          osc.frequency.setValueAtTime(freq, time);
-          gain.gain.setValueAtTime(0, time);
-          gain.gain.linearRampToValueAtTime(0.08, time + 0.02);
-          gain.gain.exponentialRampToValueAtTime(0.001, time + beat);
-          osc.connect(gain); gain.connect(this.gainNode);
-          osc.start(time); osc.stop(time + beat);
-          this.oscillators.push(osc);
-        };
-
-        const bassPattern = [55, 55, 73.42, 55, 55, 82.41, 55, 61.74, 55, 55, 73.42, 55, 82.41, 55, 61.74, 55];
-        const arpNotes = [440, 523.25, 587.33, 659.25, 783.99, 659.25, 587.33, 523.25];
-        const steps = Math.floor(duration / sixteenth);
-
-        for (let i = 0; i < steps; i++) {
-          const time = now + i * sixteenth;
-          if (i % 4 === 0) scheduleKick(time);
-          scheduleBassline(time, bassPattern[i % 16]);
-          if (i % 8 === 0) scheduleArp(time, arpNotes[Math.floor(i / 8) % arpNotes.length]);
-        }
-
-        this._loopTimeout = setTimeout(() => {
-          if (this.isPlaying && this.currentTrack === 2) this._psytrance(beat);
-        }, duration * 1000);
+        const now=this.ctx.currentTime, dur=16, sx=beat/4;
+        const kick=(t)=>{const o=this.ctx.createOscillator(),g=this.ctx.createGain(); o.type='sine'; o.frequency.setValueAtTime(150,t); o.frequency.exponentialRampToValueAtTime(40,t+0.05); g.gain.setValueAtTime(0.85,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.2); o.connect(g); g.connect(this.gainNode); o.start(t); o.stop(t+0.2); this.oscillators.push(o);};
+        const bass=(t,fr)=>{const o=this.ctx.createOscillator(),f=this.ctx.createBiquadFilter(),g=this.ctx.createGain(); o.type='sawtooth'; o.frequency.setValueAtTime(fr,t); f.type='lowpass'; f.frequency.setValueAtTime(300,t); f.frequency.exponentialRampToValueAtTime(4000,t+sx*0.2); f.frequency.exponentialRampToValueAtTime(300,t+sx*0.8); f.Q.value=12; g.gain.setValueAtTime(0.25,t); g.gain.linearRampToValueAtTime(0,t+sx*0.85); o.connect(f); f.connect(g); g.connect(this.gainNode); o.start(t); o.stop(t+sx); this.oscillators.push(o);};
+        const arp=(t,fr)=>{const o=this.ctx.createOscillator(),g=this.ctx.createGain(); o.type='triangle'; o.frequency.setValueAtTime(fr,t); g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.08,t+0.02); g.gain.exponentialRampToValueAtTime(0.001,t+beat); o.connect(g); g.connect(this.gainNode); o.start(t); o.stop(t+beat); this.oscillators.push(o);};
+        const bp=[55,55,73.42,55,55,82.41,55,61.74,55,55,73.42,55,82.41,55,61.74,55];
+        const an=[440,523.25,587.33,659.25,783.99,659.25,587.33,523.25];
+        const steps=Math.floor(dur/sx);
+        for(let i=0;i<steps;i++){const t=now+i*sx; if(i%4===0)kick(t); bass(t,bp[i%16]); if(i%8===0)arp(t,an[Math.floor(i/8)%8]);}
+        this._loopTimeout=setTimeout(()=>{if(this.isPlaying&&this.currentTrack===2)this._psytrance(beat);},dur*1000);
       }
-
-      // Dubstep: heavy sub bass wobble, half-time snare, aggressive kick
       _dubstep(beat) {
-        const now = this.ctx.currentTime;
-        const duration = 16;
-        const halfBeat = beat / 2;
-
-        const scheduleKick = (time) => {
-          const osc = this.ctx.createOscillator();
-          const gain = this.ctx.createGain();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(180, time);
-          osc.frequency.exponentialRampToValueAtTime(25, time + 0.1);
-          gain.gain.setValueAtTime(1, time);
-          gain.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
-          osc.connect(gain); gain.connect(this.gainNode);
-          osc.start(time); osc.stop(time + 0.3);
-          this.oscillators.push(osc);
-        };
-
-        const scheduleSnare = (time) => {
-          const bufferSize = this.ctx.sampleRate * 0.15;
-          const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-          const data = buffer.getChannelData(0);
-          for (let i = 0; i < bufferSize; i++) {
-            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.25));
-          }
-          const noise = this.ctx.createBufferSource();
-          noise.buffer = buffer;
-          const filter = this.ctx.createBiquadFilter();
-          filter.type = 'peaking'; filter.frequency.value = 200; filter.Q.value = 1; filter.gain.value = 8;
-          const gain = this.ctx.createGain();
-          gain.gain.setValueAtTime(0.7, time);
-          gain.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
-          noise.connect(filter); filter.connect(gain); gain.connect(this.gainNode);
-          noise.start(time); noise.stop(time + 0.15);
-          // layer a tone with it
-          const osc = this.ctx.createOscillator();
-          const g2 = this.ctx.createGain();
-          osc.type = 'triangle';
-          osc.frequency.setValueAtTime(180, time);
-          g2.gain.setValueAtTime(0.3, time);
-          g2.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
-          osc.connect(g2); g2.connect(this.gainNode);
-          osc.start(time); osc.stop(time + 0.08);
-          this.oscillators.push(osc);
-        };
-
-        const scheduleWobble = (time, dur) => {
-          const osc = this.ctx.createOscillator();
-          const filter = this.ctx.createBiquadFilter();
-          const lfo = this.ctx.createOscillator();
-          const lfoGain = this.ctx.createGain();
-          const gain = this.ctx.createGain();
-
-          osc.type = 'sawtooth';
-          osc.frequency.setValueAtTime(55, time);
-          filter.type = 'lowpass';
-          filter.frequency.setValueAtTime(400, time);
-          filter.Q.value = 10;
-
-          // LFO modulates filter
-          lfo.type = 'sine';
-          const wobbleRate = [4, 8, 2, 6][Math.floor(Math.random() * 4)];
-          lfo.frequency.setValueAtTime(wobbleRate, time);
-          lfoGain.gain.setValueAtTime(1500, time);
-          lfo.connect(lfoGain);
-          lfoGain.connect(filter.frequency);
-
-          gain.gain.setValueAtTime(0.35, time);
-          gain.gain.linearRampToValueAtTime(0, time + dur);
-
-          osc.connect(filter); filter.connect(gain); gain.connect(this.gainNode);
-          osc.start(time); osc.stop(time + dur);
-          lfo.start(time); lfo.stop(time + dur);
-          this.oscillators.push(osc, lfo);
-        };
-
-        const steps = Math.floor(duration / beat);
-        for (let i = 0; i < steps; i++) {
-          const time = now + i * beat;
-          // half-time: kick on 1, snare on 3
-          if (i % 8 === 0) scheduleKick(time);
-          if (i % 8 === 4) scheduleSnare(time);
-          // wobble bass every 2 beats
-          if (i % 2 === 0) scheduleWobble(time, beat * 2);
-        }
-
-        this._loopTimeout = setTimeout(() => {
-          if (this.isPlaying && this.currentTrack === 3) this._dubstep(beat);
-        }, duration * 1000);
+        const now=this.ctx.currentTime, dur=16;
+        const kick=(t)=>{const o=this.ctx.createOscillator(),g=this.ctx.createGain(); o.type='sine'; o.frequency.setValueAtTime(180,t); o.frequency.exponentialRampToValueAtTime(25,t+0.1); g.gain.setValueAtTime(1,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.3); o.connect(g); g.connect(this.gainNode); o.start(t); o.stop(t+0.3); this.oscillators.push(o);};
+        const snare=(t)=>{const bs=this.ctx.sampleRate*0.15,buf=this.ctx.createBuffer(1,bs,this.ctx.sampleRate),d=buf.getChannelData(0); for(let i=0;i<bs;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/(bs*0.25)); const n=this.ctx.createBufferSource(); n.buffer=buf; const f=this.ctx.createBiquadFilter(); f.type='peaking'; f.frequency.value=200; f.Q.value=1; f.gain.value=8; const g=this.ctx.createGain(); g.gain.setValueAtTime(0.7,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.15); n.connect(f); f.connect(g); g.connect(this.gainNode); n.start(t); n.stop(t+0.15); const o=this.ctx.createOscillator(),g2=this.ctx.createGain(); o.type='triangle'; o.frequency.setValueAtTime(180,t); g2.gain.setValueAtTime(0.3,t); g2.gain.exponentialRampToValueAtTime(0.001,t+0.08); o.connect(g2); g2.connect(this.gainNode); o.start(t); o.stop(t+0.08); this.oscillators.push(o);};
+        const wobble=(t,d2)=>{const o=this.ctx.createOscillator(),f=this.ctx.createBiquadFilter(),lfo=this.ctx.createOscillator(),lg=this.ctx.createGain(),g=this.ctx.createGain(); o.type='sawtooth'; o.frequency.setValueAtTime(55,t); f.type='lowpass'; f.frequency.setValueAtTime(400,t); f.Q.value=10; lfo.type='sine'; lfo.frequency.setValueAtTime([4,8,2,6][Math.floor(Math.random()*4)],t); lg.gain.setValueAtTime(1500,t); lfo.connect(lg); lg.connect(f.frequency); g.gain.setValueAtTime(0.35,t); g.gain.linearRampToValueAtTime(0,t+d2); o.connect(f); f.connect(g); g.connect(this.gainNode); o.start(t); o.stop(t+d2); lfo.start(t); lfo.stop(t+d2); this.oscillators.push(o,lfo);};
+        const steps=Math.floor(dur/beat);
+        for(let i=0;i<steps;i++){const t=now+i*beat; if(i%8===0)kick(t); if(i%8===4)snare(t); if(i%2===0)wobble(t,beat*2);}
+        this._loopTimeout=setTimeout(()=>{if(this.isPlaying&&this.currentTrack===3)this._dubstep(beat);},dur*1000);
       }
-
       async loadFile(file) {
         this.stop();
-        const arrayBuffer = await file.arrayBuffer();
-        const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
-        this.source = this.ctx.createBufferSource();
-        this.source.buffer = audioBuffer;
-        this.source.loop = true;
-        this.source.connect(this.gainNode);
-        this.source.start();
-        this.isPlaying = true;
-        this.currentTrack = -1;
+        const ab=await file.arrayBuffer(), buf=await this.ctx.decodeAudioData(ab);
+        this.source=this.ctx.createBufferSource(); this.source.buffer=buf; this.source.loop=true;
+        this.source.connect(this.gainNode); this.source.start();
+        this.isPlaying=true; this.currentTrack=-1;
       }
-
       stop() {
-        if (this._loopTimeout) { clearTimeout(this._loopTimeout); this._loopTimeout = null; }
-        this.oscillators.forEach(osc => { try { osc.stop(); } catch (e) {} });
-        this.oscillators = [];
-        if (this.source) { try { this.source.stop(); } catch (e) {} this.source = null; }
-        this.isPlaying = false;
+        if(this._loopTimeout){clearTimeout(this._loopTimeout);this._loopTimeout=null;}
+        this.oscillators.forEach(o=>{try{o.stop();}catch(e){}});this.oscillators=[];
+        if(this.source){try{this.source.stop();}catch(e){} this.source=null;}
+        this.isPlaying=false;
       }
-
-      toggle() {
-        if (this.isPlaying) this.stop();
-        else this.playBuiltinTrack(this.currentTrack >= 0 ? this.currentTrack : 0);
-      }
+      toggle() { if(this.isPlaying)this.stop(); else this.playBuiltinTrack(this.currentTrack>=0?this.currentTrack:0); }
     }
 
     // ============================================================
-    // PERLIN NOISE (simplex 2D)
+    // NOISE
     // ============================================================
     class Noise {
-      constructor() {
-        this.perm = new Uint8Array(512);
-        const p = new Uint8Array(256);
-        for (let i = 0; i < 256; i++) p[i] = i;
-        for (let i = 255; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [p[i], p[j]] = [p[j], p[i]];
-        }
-        for (let i = 0; i < 512; i++) this.perm[i] = p[i & 255];
-      }
-
-      _grad(hash, x, y) {
-        const h = hash & 7;
-        const u = h < 4 ? x : y;
-        const v = h < 4 ? y : x;
-        return ((h & 1) ? -u : u) + ((h & 2) ? -v : v);
-      }
-
-      get(x, y) {
-        const X = Math.floor(x) & 255;
-        const Y = Math.floor(y) & 255;
-        x -= Math.floor(x);
-        y -= Math.floor(y);
-        const u = x * x * x * (x * (x * 6 - 15) + 10);
-        const v = y * y * y * (y * (y * 6 - 15) + 10);
-        const a = this.perm[X] + Y;
-        const b = this.perm[X + 1] + Y;
-        return 0.5 + 0.5 * (
-          this._lerp(
-            this._lerp(this._grad(this.perm[a], x, y), this._grad(this.perm[b], x - 1, y), u),
-            this._lerp(this._grad(this.perm[a + 1], x, y - 1), this._grad(this.perm[b + 1], x - 1, y - 1), u),
-            v
-          )
-        );
-      }
-
-      _lerp(a, b, t) { return a + t * (b - a); }
+      constructor(){this.perm=new Uint8Array(512);const p=new Uint8Array(256);for(let i=0;i<256;i++)p[i]=i;for(let i=255;i>0;i--){const j=Math.floor(Math.random()*(i+1));[p[i],p[j]]=[p[j],p[i]];}for(let i=0;i<512;i++)this.perm[i]=p[i&255];}
+      _grad(h,x,y){const u=h<4?x:y,v=h<4?y:x;return((h&1)?-u:u)+((h&2)?-v:v);}
+      get(x,y){const X=Math.floor(x)&255,Y=Math.floor(y)&255;x-=Math.floor(x);y-=Math.floor(y);const u=x*x*x*(x*(x*6-15)+10),v=y*y*y*(y*(y*6-15)+10),a=this.perm[X]+Y,b=this.perm[X+1]+Y;return 0.5+0.5*(this._lerp(this._lerp(this._grad(this.perm[a]&7,x,y),this._grad(this.perm[b]&7,x-1,y),u),this._lerp(this._grad(this.perm[a+1]&7,x,y-1),this._grad(this.perm[b+1]&7,x-1,y-1),u),v));}
+      _lerp(a,b,t){return a+t*(b-a);}
     }
-
     const noise = new Noise();
 
     // ============================================================
-    // PARTICLE
-    // ============================================================
-    class Particle {
-      constructor(x, y, color) {
-        this.x = x;
-        this.y = y;
-        this.targetX = x;
-        this.targetY = y;
-        this.vx = 0;
-        this.vy = 0;
-        this.size = 2;
-        this.baseSize = 2;
-        this.color = color;
-        this.alpha = 1;
-        this.life = 1;
-      }
-
-      reset(x, y, color) {
-        this.targetX = x;
-        this.targetY = y;
-        this.color = color;
-        this.life = 1;
-      }
-    }
-
-    // ============================================================
-    // COLOR PALETTES
+    // PALETTES (bolder, more saturated)
     // ============================================================
     const PALETTES = {
-      cyber: { bg1: '#0a0020', bg2: '#001a1a', accent: '#0ff', hueBase: 180, hueRange: 160 },
-      aurora: { bg1: '#0a0028', bg2: '#001020', accent: '#7df', hueBase: 200, hueRange: 80 },
-      cosmic: { bg1: '#1a0a00', bg2: '#200010', accent: '#f80', hueBase: 20, hueRange: 60 },
-      ocean: { bg1: '#001a20', bg2: '#000a18', accent: '#0fa', hueBase: 160, hueRange: 60 },
-      nebula: { bg1: '#100020', bg2: '#001a20', accent: '#a0f', hueBase: 260, hueRange: 120 },
+      cyber:    { bg1: '#0a0030', bg2: '#002020', accent: '#0ff', hueBase: 180, hueRange: 180 },
+      aurora:   { bg1: '#0a0035', bg2: '#001525', accent: '#5ef', hueBase: 200, hueRange: 100 },
+      cosmic:   { bg1: '#200a00', bg2: '#300015', accent: '#f60', hueBase: 15, hueRange: 50 },
+      ocean:    { bg1: '#001020', bg2: '#000818', accent: '#0cf', hueBase: 190, hueRange: 50 },
+      nebula:   { bg1: '#150025', bg2: '#002025', accent: '#c4f', hueBase: 270, hueRange: 130 },
       terminal: { bg1: '#050a05', bg2: '#000800', accent: '#0f0', hueBase: 120, hueRange: 40 },
     };
-
     const MODE_PALETTES = ['cyber', 'aurora', 'cosmic', 'ocean', 'nebula', 'terminal'];
     const MODE_NAMES = ['Text', 'Ring', 'Galaxy', 'Wave', 'Fluid', 'Code'];
+    const TRACK_NAMES = ['Lo-fi', 'Glitch', 'Psy', 'Dubstep'];
 
     // ============================================================
-    // BACKGROUND RENDERER
+    // BACKGROUND
     // ============================================================
     class Background {
-      constructor(canvas, ctx) {
-        this.canvas = canvas;
-        this.ctx = ctx;
-        this.pulses = [];
-        this.time = 0;
-      }
-
-      addPulse(intensity) {
-        this.pulses.push({ radius: 0, alpha: intensity * 0.3, speed: 3 + intensity * 5 });
-        if (this.pulses.length > 5) this.pulses.shift();
-      }
-
+      constructor(canvas, ctx) { this.canvas=canvas; this.ctx=ctx; this.pulses=[]; this.time=0; }
+      addPulse(intensity) { this.pulses.push({radius:0, alpha:intensity*0.25, speed:3+intensity*6}); if(this.pulses.length>5)this.pulses.shift(); }
       draw(palette, bands) {
-        const { canvas, ctx } = this;
-        const w = canvas.width, h = canvas.height;
-        this.time += 0.005;
-
-        const p = PALETTES[palette];
-        const grad = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.7);
-        const shift = Math.sin(this.time) * 0.1;
-        grad.addColorStop(0, p.bg2);
-        grad.addColorStop(0.5 + shift, p.bg1);
-        grad.addColorStop(1, '#000');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, w, h);
-
-        // radial pulses
-        for (let i = this.pulses.length - 1; i >= 0; i--) {
-          const pulse = this.pulses[i];
-          pulse.radius += pulse.speed;
-          pulse.alpha *= 0.97;
-          if (pulse.alpha < 0.01) { this.pulses.splice(i, 1); continue; }
-          ctx.beginPath();
-          ctx.arc(w / 2, h / 2, pulse.radius, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(${this._hexToRgb(p.accent)}, ${pulse.alpha})`;
-          ctx.lineWidth = 2;
-          ctx.stroke();
+        const {canvas,ctx}=this, w=canvas.width, h=canvas.height; this.time+=0.005;
+        const p=PALETTES[palette];
+        const grad=ctx.createRadialGradient(w/2,h/2,0,w/2,h/2,Math.max(w,h)*0.7);
+        const shift=Math.sin(this.time)*0.1;
+        grad.addColorStop(0,p.bg2); grad.addColorStop(0.5+shift,p.bg1); grad.addColorStop(1,'#000');
+        ctx.fillStyle=grad; ctx.fillRect(0,0,w,h);
+        for(let i=this.pulses.length-1;i>=0;i--){
+          const pulse=this.pulses[i]; pulse.radius+=pulse.speed; pulse.alpha*=0.97;
+          if(pulse.alpha<0.01){this.pulses.splice(i,1);continue;}
+          ctx.beginPath(); ctx.arc(w/2,h/2,pulse.radius,0,Math.PI*2);
+          ctx.strokeStyle=`rgba(${this._c(p.accent)},${pulse.alpha})`; ctx.lineWidth=2; ctx.stroke();
         }
-
-        if (bands.low > 0.5) this.addPulse(bands.low);
+        if(bands.low>0.5)this.addPulse(bands.low);
       }
-
-      _hexToRgb(hex) {
-        const r = parseInt(hex.slice(1, 3) || hex.slice(1, 2).repeat(2), 16) || 0;
-        const g = parseInt(hex.slice(3, 5) || hex.slice(2, 3).repeat(2), 16) || 0;
-        const b = parseInt(hex.slice(5, 7) || hex.slice(3, 4).repeat(2), 16) || 0;
-        // handle shorthand like #0ff
-        if (hex.length === 4) {
-          return `${parseInt(hex[1]+hex[1],16)}, ${parseInt(hex[2]+hex[2],16)}, ${parseInt(hex[3]+hex[3],16)}`;
-        }
-        return `${r}, ${g}, ${b}`;
-      }
+      _c(hex){if(hex.length===4)return`${parseInt(hex[1]+hex[1],16)},${parseInt(hex[2]+hex[2],16)},${parseInt(hex[3]+hex[3],16)}`;return`${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)}`;}
     }
 
     // ============================================================
-    // CONNECTION RENDERER
+    // CONNECTIONS
     // ============================================================
     class Connections {
-      constructor(ctx) {
-        this.ctx = ctx;
-        this.pulse = 0;
-      }
-
+      constructor(ctx){this.ctx=ctx;this.pulse=0;}
       draw(particles, maxDist, palette, bands) {
-        const ctx = this.ctx;
-        const p = PALETTES[palette];
-        this.pulse += 0.05;
-        const pulseAlpha = 0.3 + Math.sin(this.pulse) * 0.15 + bands.mid * 0.4;
-        const count = Math.min(particles.length, 500);
-
-        for (let i = 0; i < count; i++) {
-          const a = particles[i];
-          for (let j = i + 1; j < count; j++) {
-            const b = particles[j];
-            const dx = a.x - b.x;
-            const dy = a.y - b.y;
-            const dist = dx * dx + dy * dy;
-            if (dist < maxDist * maxDist) {
-              const alpha = (1 - Math.sqrt(dist) / maxDist) * pulseAlpha;
-              ctx.beginPath();
-              ctx.moveTo(a.x, a.y);
-              ctx.lineTo(b.x, b.y);
-              ctx.strokeStyle = `hsla(${p.hueBase + bands.low * 60}, 100%, 60%, ${alpha})`;
-              ctx.lineWidth = 0.5 + bands.high;
-              ctx.stroke();
-            }
-          }
-        }
+        const ctx=this.ctx, p=PALETTES[palette]; this.pulse+=0.05;
+        const pulseAlpha=0.3+Math.sin(this.pulse)*0.15+bands.mid*0.4;
+        const count=Math.min(particles.length,400);
+        for(let i=0;i<count;i++){const a=particles[i];for(let j=i+1;j<count;j++){const b=particles[j];const dx=a.x-b.x,dy=a.y-b.y,dist=dx*dx+dy*dy;if(dist<maxDist*maxDist){const alpha=(1-Math.sqrt(dist)/maxDist)*pulseAlpha;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.strokeStyle=`hsla(${p.hueBase+bands.low*60},100%,60%,${alpha})`;ctx.lineWidth=0.5+bands.high;ctx.stroke();}}}
       }
     }
 
     // ============================================================
-    // VISUALIZER MODES
+    // MODE 0: TEXT (Bokeh particles)
     // ============================================================
-
-    // Mode 0: Particle Text
     class TextMode {
-      constructor(canvas, ctx) {
-        this.canvas = canvas;
-        this.ctx = ctx;
-        this.particles = [];
-        this.text = 'MUSIC';
-        this.offscreen = document.createElement('canvas');
-        this.offCtx = this.offscreen.getContext('2d');
-        this.connections = new Connections(ctx);
+      constructor(canvas,ctx){this.canvas=canvas;this.ctx=ctx;this.particles=[];this.text='MUSIC';this.off=document.createElement('canvas');this.offCtx=this.off.getContext('2d');this.connections=new Connections(ctx);}
+      setText(t){this.text=(t.trim()||'MUSIC').toUpperCase();this.generate();}
+      generate(){
+        const{canvas,off,offCtx,text}=this,w=canvas.width,h=canvas.height;
+        off.width=w;off.height=h;offCtx.clearRect(0,0,w,h);
+        let fs=Math.min(h*0.35,160);offCtx.font=`bold ${fs}px "Courier New",monospace`;offCtx.textAlign='center';offCtx.textBaseline='middle';
+        while(offCtx.measureText(text).width>w*0.8&&fs>30){fs-=4;offCtx.font=`bold ${fs}px "Courier New",monospace`;}
+        offCtx.fillStyle='#fff';offCtx.fillText(text,w/2,h/2);
+        const img=offCtx.getImageData(0,0,w,h).data,gap=5,pts=[];
+        for(let y=0;y<h;y+=gap)for(let x=0;x<w;x+=gap)if(img[(y*w+x)*4+3]>128)pts.push({x,y});
+        const max=2500,step=pts.length>max?Math.ceil(pts.length/max):1;
+        this.particles=[];
+        for(let i=0;i<pts.length;i+=step){const{x,y}=pts[i];const hue=180+(x/w)*180;this.particles.push({x:x+(Math.random()-0.5)*100,y:y+(Math.random()-0.5)*100,targetX:x,targetY:y,vx:0,vy:0,size:3+Math.random()*4,color:`hsl(${hue},100%,65%)`,alpha:1,hue});}
       }
-
-      setText(text) {
-        this.text = (text.trim() || 'MUSIC').toUpperCase();
-        this.generate();
-      }
-
-      generate() {
-        const { canvas, offscreen, offCtx, text } = this;
-        const w = canvas.width, h = canvas.height;
-        offscreen.width = w; offscreen.height = h;
-        offCtx.clearRect(0, 0, w, h);
-
-        let fontSize = Math.min(h * 0.35, 160);
-        offCtx.font = `bold ${fontSize}px "Courier New", monospace`;
-        offCtx.textAlign = 'center';
-        offCtx.textBaseline = 'middle';
-        while (offCtx.measureText(text).width > w * 0.8 && fontSize > 30) {
-          fontSize -= 4;
-          offCtx.font = `bold ${fontSize}px "Courier New", monospace`;
-        }
-        offCtx.fillStyle = '#fff';
-        offCtx.fillText(text, w / 2, h / 2);
-
-        const imageData = offCtx.getImageData(0, 0, w, h).data;
-        const gap = 4;
-        const points = [];
-        for (let y = 0; y < h; y += gap) {
-          for (let x = 0; x < w; x += gap) {
-            if (imageData[(y * w + x) * 4 + 3] > 128) points.push({ x, y });
-          }
-        }
-
-        const max = 3000;
-        const step = points.length > max ? Math.ceil(points.length / max) : 1;
-        const palette = PALETTES.cyber;
-
-        this.particles = [];
-        for (let i = 0; i < points.length; i += step) {
-          const { x, y } = points[i];
-          const hue = palette.hueBase + (x / w) * palette.hueRange;
-          const color = `hsl(${hue}, 100%, 60%)`;
-          const p = new Particle(x + (Math.random() - 0.5) * 100, y + (Math.random() - 0.5) * 100, color);
-          p.targetX = x; p.targetY = y;
-          this.particles.push(p);
+      update(bands){
+        for(const p of this.particles){
+          const dx=p.targetX-p.x,dy=p.targetY-p.y,sp=0.03+bands.mid*0.03;
+          p.vx+=dx*sp;p.vy+=dy*sp;
+          if(bands.low>0.4){const a=Math.random()*Math.PI*2,f=(bands.low-0.4)*12;p.vx+=Math.cos(a)*f;p.vy+=Math.sin(a)*f;}
+          p.vx*=0.91;p.vy*=0.91;p.x+=p.vx;p.y+=p.vy;
+          p.size=3+bands.mid*4+Math.random()*0.5;p.alpha=0.5+bands.high*0.5;
         }
       }
-
-      update(bands) {
-        for (const p of this.particles) {
-          const dx = p.targetX - p.x;
-          const dy = p.targetY - p.y;
-          const spring = 0.03 + bands.mid * 0.03;
-          p.vx += dx * spring;
-          p.vy += dy * spring;
-          if (bands.low > 0.4) {
-            const angle = Math.random() * Math.PI * 2;
-            const force = (bands.low - 0.4) * 12;
-            p.vx += Math.cos(angle) * force;
-            p.vy += Math.sin(angle) * force;
-          }
-          p.vx *= 0.91; p.vy *= 0.91;
-          p.x += p.vx; p.y += p.vy;
-          p.size = p.baseSize + bands.mid * 3;
-          p.alpha = 0.6 + bands.high * 0.4;
+      draw(bands){
+        const ctx=this.ctx;
+        // bokeh: large soft circles with glow
+        for(const p of this.particles){
+          const grad=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size);
+          grad.addColorStop(0,`hsla(${p.hue},100%,80%,${p.alpha})`);
+          grad.addColorStop(0.4,`hsla(${p.hue},100%,60%,${p.alpha*0.6})`);
+          grad.addColorStop(1,`hsla(${p.hue},100%,50%,0)`);
+          ctx.fillStyle=grad;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill();
         }
+        this.connections.draw(this.particles,55+bands.low*30,'cyber',bands);
       }
-
-      draw(bands) {
-        const ctx = this.ctx;
-        const glowIntensity = 5 + bands.high * 20;
-        ctx.shadowBlur = glowIntensity;
-        ctx.shadowColor = `hsl(${180 + bands.low * 100}, 100%, 50%)`;
-        for (const p of this.particles) {
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-          ctx.fillStyle = p.color;
-          ctx.globalAlpha = p.alpha;
-          ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-        ctx.shadowBlur = 0;
-        this.connections.draw(this.particles, 50 + bands.low * 30, 'cyber', bands);
-      }
-
-      resize() { this.generate(); }
-      getParticles() { return this.particles; }
+      resize(){this.generate();}
+      getParticles(){return this.particles;}
     }
 
-    // Mode 1: Spectrum Ring
+    // ============================================================
+    // MODE 1: RING (Light trail segments)
+    // ============================================================
     class RingMode {
-      constructor(canvas, ctx) {
-        this.canvas = canvas;
-        this.ctx = ctx;
-        this.particles = [];
-        this.rotation = 0;
+      constructor(canvas,ctx){this.canvas=canvas;this.ctx=ctx;this.particles=[];this.rotation=0;}
+      generate(){
+        const cx=this.canvas.width/2,cy=this.canvas.height/2,r=Math.min(cx,cy)*0.35,count=180;
+        this.particles=[];
+        for(let i=0;i<count;i++){const angle=(i/count)*Math.PI*2;const x=cx+Math.cos(angle)*r;const y=cy+Math.sin(angle)*r;const hue=200+(i/count)*100;this.particles.push({x,y,targetX:x,targetY:y,angle,baseRadius:r,size:2,color:`hsl(${hue},95%,60%)`,alpha:1,hue});}
       }
-
-      generate() {
-        const { canvas } = this;
-        const cx = canvas.width / 2, cy = canvas.height / 2;
-        const radius = Math.min(cx, cy) * 0.35;
-        const count = 180;
-        this.particles = [];
-        for (let i = 0; i < count; i++) {
-          const angle = (i / count) * Math.PI * 2;
-          const x = cx + Math.cos(angle) * radius;
-          const y = cy + Math.sin(angle) * radius;
-          const hue = 200 + (i / count) * 80;
-          const p = new Particle(x, y, `hsl(${hue}, 90%, 60%)`);
-          p.targetX = x; p.targetY = y;
-          p.angle = angle;
-          p.baseRadius = radius;
-          this.particles.push(p);
+      update(bands){
+        const cx=this.canvas.width/2,cy=this.canvas.height/2;this.rotation+=0.002+bands.mid*0.01;
+        const rawLen=bands.raw.length;
+        for(let i=0;i<this.particles.length;i++){
+          const p=this.particles[i];
+          const fi=Math.floor((i/this.particles.length)*rawLen),fv=(bands.raw[fi]||0)/255;
+          const dr=p.baseRadius+fv*120,angle=p.angle+this.rotation;
+          p.targetX=cx+Math.cos(angle)*dr;p.targetY=cy+Math.sin(angle)*dr;
+          p.x+=(p.targetX-p.x)*0.15;p.y+=(p.targetY-p.y)*0.15;
+          p.size=2+fv*5;p.alpha=0.5+fv*0.5;
+          p.hue=200+(i/this.particles.length)*100+bands.low*40;
+          p.color=`hsl(${p.hue},95%,${50+fv*30}%)`;
         }
       }
-
-      update(bands) {
-        const cx = this.canvas.width / 2, cy = this.canvas.height / 2;
-        this.rotation += 0.002 + bands.mid * 0.01;
-        const rawLen = bands.raw.length;
-
-        for (let i = 0; i < this.particles.length; i++) {
-          const p = this.particles[i];
-          const freqIdx = Math.floor((i / this.particles.length) * rawLen);
-          const freqVal = (bands.raw[freqIdx] || 0) / 255;
-          const dynamicRadius = p.baseRadius + freqVal * 120;
-          const angle = p.angle + this.rotation;
-          p.targetX = cx + Math.cos(angle) * dynamicRadius;
-          p.targetY = cy + Math.sin(angle) * dynamicRadius;
-          p.x += (p.targetX - p.x) * 0.15;
-          p.y += (p.targetY - p.y) * 0.15;
-          p.size = 2 + freqVal * 5;
-          p.alpha = 0.5 + freqVal * 0.5;
-          const hue = 200 + (i / this.particles.length) * 80 + bands.low * 40;
-          p.color = `hsl(${hue}, 90%, ${50 + freqVal * 30}%)`;
-        }
-      }
-
-      draw(bands) {
-        const ctx = this.ctx;
-        const cx = this.canvas.width / 2, cy = this.canvas.height / 2;
-
+      draw(bands){
+        const ctx=this.ctx,cx=this.canvas.width/2,cy=this.canvas.height/2;
         // inner glow
-        const innerGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, this.particles[0].baseRadius * 0.8);
-        innerGrad.addColorStop(0, `rgba(100, 200, 255, ${bands.mid * 0.1})`);
-        innerGrad.addColorStop(1, 'transparent');
-        ctx.fillStyle = innerGrad;
-        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-        ctx.shadowBlur = 8 + bands.high * 15;
-        ctx.shadowColor = `hsl(220, 100%, 60%)`;
-
-        // draw bars connecting center to particles
-        for (let i = 0; i < this.particles.length; i += 2) {
-          const p = this.particles[i];
-          const angle = p.angle + this.rotation;
-          const innerR = p.baseRadius * 0.9;
-          const ix = cx + Math.cos(angle) * innerR;
-          const iy = cy + Math.sin(angle) * innerR;
-          ctx.beginPath();
-          ctx.moveTo(ix, iy);
-          ctx.lineTo(p.x, p.y);
-          ctx.strokeStyle = p.color;
-          ctx.globalAlpha = p.alpha * 0.6;
-          ctx.lineWidth = 2;
-          ctx.stroke();
+        const ig=ctx.createRadialGradient(cx,cy,0,cx,cy,this.particles[0].baseRadius*0.8);
+        ig.addColorStop(0,`rgba(100,200,255,${bands.mid*0.1})`);ig.addColorStop(1,'transparent');
+        ctx.fillStyle=ig;ctx.fillRect(0,0,this.canvas.width,this.canvas.height);
+        ctx.shadowBlur=8+bands.high*15;ctx.shadowColor='hsl(220,100%,60%)';
+        // bars from inner ring to particles
+        for(let i=0;i<this.particles.length;i+=2){
+          const p=this.particles[i],angle=p.angle+this.rotation;
+          const innerR=p.baseRadius*0.9;
+          const ix=cx+Math.cos(angle)*innerR,iy=cy+Math.sin(angle)*innerR;
+          ctx.beginPath();ctx.moveTo(ix,iy);ctx.lineTo(p.x,p.y);
+          ctx.strokeStyle=p.color;ctx.globalAlpha=p.alpha*0.6;ctx.lineWidth=2;ctx.stroke();
         }
-
-        for (const p of this.particles) {
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-          ctx.fillStyle = p.color;
-          ctx.globalAlpha = p.alpha;
-          ctx.fill();
+        // particles
+        for(const p of this.particles){
+          ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
+          ctx.fillStyle=p.color;ctx.globalAlpha=p.alpha;ctx.fill();
         }
-        ctx.globalAlpha = 1;
-        ctx.shadowBlur = 0;
+        ctx.globalAlpha=1;ctx.shadowBlur=0;
       }
-
-      resize() { this.generate(); }
-      getParticles() { return this.particles; }
+      resize(){this.generate();}
+      getParticles(){return this.particles;}
     }
 
-    // Mode 2: Galaxy Vortex
+    // ============================================================
+    // MODE 2: GALAXY (Star trails)
+    // ============================================================
     class GalaxyMode {
-      constructor(canvas, ctx) {
-        this.canvas = canvas;
-        this.ctx = ctx;
-        this.particles = [];
-        this.connections = new Connections(ctx);
-        this.time = 0;
-      }
-
-      generate() {
-        const cx = this.canvas.width / 2, cy = this.canvas.height / 2;
-        const count = 1500;
-        this.particles = [];
-        for (let i = 0; i < count; i++) {
-          const arm = i % 3;
-          const dist = Math.random() * Math.min(cx, cy) * 0.7;
-          const angle = (arm / 3) * Math.PI * 2 + dist * 0.015 + Math.random() * 0.3;
-          const x = cx + Math.cos(angle) * dist;
-          const y = cy + Math.sin(angle) * dist;
-          const hue = 20 + dist * 0.3 + arm * 20;
-          const p = new Particle(x, y, `hsl(${hue}, 90%, 60%)`);
-          p.dist = dist;
-          p.armAngle = angle;
-          p.arm = arm;
-          p.orbitSpeed = 0.001 + (1 - dist / (Math.min(cx, cy) * 0.7)) * 0.003;
-          this.particles.push(p);
+      constructor(canvas,ctx){this.canvas=canvas;this.ctx=ctx;this.particles=[];this.connections=new Connections(ctx);this.time=0;}
+      generate(){
+        const cx=this.canvas.width/2,cy=this.canvas.height/2,count=1200;
+        this.particles=[];
+        for(let i=0;i<count;i++){
+          const arm=i%3,dist=Math.random()*Math.min(cx,cy)*0.7;
+          const angle=(arm/3)*Math.PI*2+dist*0.015+Math.random()*0.3;
+          const x=cx+Math.cos(angle)*dist,y=cy+Math.sin(angle)*dist;
+          const hue=15+dist*0.4+arm*25;
+          this.particles.push({x,y,targetX:x,targetY:y,prevX:x,prevY:y,dist,armAngle:angle,arm,orbitSpeed:0.001+(1-dist/(Math.min(cx,cy)*0.7))*0.003,size:1.5,color:`hsl(${hue},90%,60%)`,alpha:0.6,hue});
         }
       }
-
-      update(bands) {
-        const cx = this.canvas.width / 2, cy = this.canvas.height / 2;
-        this.time += 0.01 + bands.mid * 0.02;
-
-        for (const p of this.particles) {
-          p.armAngle += p.orbitSpeed * (1 + bands.low * 2);
-          let dist = p.dist;
-
-          if (bands.low > 0.5) {
-            dist += (bands.low - 0.5) * 40 * Math.sin(this.time * 3 + p.arm);
-          }
-
-          p.targetX = cx + Math.cos(p.armAngle) * dist;
-          p.targetY = cy + Math.sin(p.armAngle) * dist;
-          p.x += (p.targetX - p.x) * 0.08;
-          p.y += (p.targetY - p.y) * 0.08;
-          p.size = 1.5 + bands.mid * 2 + (1 - p.dist / (Math.min(cx, cy) * 0.7)) * 2;
-          p.alpha = 0.4 + bands.high * 0.4 + (1 - p.dist / (Math.min(cx, cy) * 0.7)) * 0.3;
-          const hue = 20 + p.dist * 0.3 + p.arm * 20 + bands.low * 30;
-          p.color = `hsl(${hue}, 85%, ${50 + bands.mid * 20}%)`;
+      update(bands){
+        const cx=this.canvas.width/2,cy=this.canvas.height/2;this.time+=0.01+bands.mid*0.02;
+        for(const p of this.particles){
+          p.prevX=p.x;p.prevY=p.y;
+          p.armAngle+=p.orbitSpeed*(1+bands.low*2);
+          let dist=p.dist;if(bands.low>0.5)dist+=(bands.low-0.5)*40*Math.sin(this.time*3+p.arm);
+          p.targetX=cx+Math.cos(p.armAngle)*dist;p.targetY=cy+Math.sin(p.armAngle)*dist;
+          p.x+=(p.targetX-p.x)*0.08;p.y+=(p.targetY-p.y)*0.08;
+          p.size=1.5+bands.mid*2+(1-p.dist/(Math.min(cx,cy)*0.7))*2;
+          p.alpha=0.4+bands.high*0.4+(1-p.dist/(Math.min(cx,cy)*0.7))*0.3;
+          p.hue=15+p.dist*0.4+p.arm*25+bands.low*30;
+          p.color=`hsl(${p.hue},90%,${55+bands.mid*25}%)`;
         }
       }
-
-      draw(bands) {
-        const ctx = this.ctx;
-        const cx = this.canvas.width / 2, cy = this.canvas.height / 2;
-
+      draw(bands){
+        const ctx=this.ctx,cx=this.canvas.width/2,cy=this.canvas.height/2;
         // core glow
-        const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 60);
-        coreGrad.addColorStop(0, `rgba(255, 150, 50, ${0.3 + bands.low * 0.3})`);
-        coreGrad.addColorStop(1, 'transparent');
-        ctx.fillStyle = coreGrad;
-        ctx.fillRect(cx - 80, cy - 80, 160, 160);
-
-        ctx.shadowBlur = 6 + bands.high * 10;
-        ctx.shadowColor = `hsl(30, 100%, 50%)`;
-
-        for (const p of this.particles) {
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-          ctx.fillStyle = p.color;
-          ctx.globalAlpha = p.alpha;
-          ctx.fill();
+        const cg=ctx.createRadialGradient(cx,cy,0,cx,cy,50);
+        cg.addColorStop(0,`rgba(255,120,30,${0.3+bands.low*0.3})`);cg.addColorStop(1,'transparent');
+        ctx.fillStyle=cg;ctx.fillRect(cx-70,cy-70,140,140);
+        // star trails
+        for(const p of this.particles){
+          const dx=p.x-p.prevX,dy=p.y-p.prevY,trailLen=Math.sqrt(dx*dx+dy*dy);
+          if(trailLen>1){
+            ctx.beginPath();ctx.moveTo(p.prevX,p.prevY);ctx.lineTo(p.x,p.y);
+            ctx.strokeStyle=`hsla(${p.hue},80%,50%,${p.alpha*0.4})`;ctx.lineWidth=p.size*0.5;ctx.stroke();
+          }
+          ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
+          ctx.fillStyle=p.color;ctx.globalAlpha=p.alpha;ctx.fill();
         }
-        ctx.globalAlpha = 1;
-        ctx.shadowBlur = 0;
-
-        this.connections.draw(this.particles.slice(0, 400), 40 + bands.low * 20, 'cosmic', bands);
+        ctx.globalAlpha=1;
+        this.connections.draw(this.particles.slice(0,350),40+bands.low*20,'cosmic',bands);
       }
-
-      resize() { this.generate(); }
-      getParticles() { return this.particles; }
+      resize(){this.generate();}
+      getParticles(){return this.particles;}
     }
 
-    // Mode 3: Waveform Mountains
+    // ============================================================
+    // MODE 3: WAVE (Sunset Lava)
+    // ============================================================
     class WaveMode {
-      constructor(canvas, ctx) {
-        this.canvas = canvas;
-        this.ctx = ctx;
-        this.particles = [];
-        this.time = 0;
-      }
-
-      generate() {
-        const w = this.canvas.width, h = this.canvas.height;
-        const layers = 6;
-        const pointsPerLayer = 80;
-        this.particles = [];
-        for (let l = 0; l < layers; l++) {
-          for (let i = 0; i < pointsPerLayer; i++) {
-            const x = (i / (pointsPerLayer - 1)) * w;
-            const y = h * (0.35 + l * 0.1);
-            const hue = 160 + l * 15;
-            const p = new Particle(x, y, `hsl(${hue}, 80%, ${60 - l * 5}%)`);
-            p.layer = l;
-            p.idx = i;
-            p.baseY = y;
-            this.particles.push(p);
-          }
+      constructor(canvas,ctx){this.canvas=canvas;this.ctx=ctx;this.particles=[];this.time=0;}
+      generate(){
+        const w=this.canvas.width,h=this.canvas.height,layers=6,ppl=80;
+        this.particles=[];
+        // lava colors: bottom=red/orange, top=purple/blue
+        const hues=[220,200,185,175,165,155];
+        for(let l=0;l<layers;l++)for(let i=0;i<ppl;i++){
+          const x=(i/(ppl-1))*w,y=h*(0.35+l*0.1);
+          this.particles.push({x,y,targetX:x,targetY:y,baseY:y,layer:l,idx:i,size:2,color:`hsl(${hues[l]},90%,55%)`,alpha:0.6,hue:hues[l]});
         }
       }
-
-      update(bands) {
-        const w = this.canvas.width;
-        this.time += 0.02 + bands.mid * 0.03;
-
-        for (const p of this.particles) {
-          const freqIdx = Math.floor((p.idx / 80) * (bands.raw.length || 1));
-          const freqVal = (bands.raw[freqIdx] || 0) / 255;
-          const wave = Math.sin(p.idx * 0.1 + this.time + p.layer * 0.8) * 20;
-          const audioWave = freqVal * (80 - p.layer * 10);
-          p.y = p.baseY - wave - audioWave;
-          p.size = 2 + freqVal * 3;
-          p.alpha = 0.4 + freqVal * 0.5 + (1 - p.layer / 6) * 0.2;
-          const hue = 160 + p.layer * 15 + bands.low * 30;
-          p.color = `hsl(${hue}, 80%, ${50 + freqVal * 30}%)`;
+      update(bands){
+        this.time+=0.02+bands.mid*0.03;
+        const rawLen=bands.raw.length,hues=[10,25,40,270,250,230];
+        for(const p of this.particles){
+          const fi=Math.floor((p.idx/80)*rawLen),fv=(bands.raw[fi]||0)/255;
+          const wave=Math.sin(p.idx*0.1+this.time+p.layer*0.8)*20;
+          p.y=p.baseY-wave-fv*(90-p.layer*12);
+          p.size=2.5+fv*4;
+          p.alpha=0.4+fv*0.5+(1-p.layer/6)*0.2;
+          const baseHue=hues[p.layer];
+          p.hue=baseHue+bands.low*20;
+          p.color=`hsl(${p.hue},${85+fv*15}%,${45+fv*35}%)`;
         }
       }
-
-      draw(bands) {
-        const ctx = this.ctx;
-        const w = this.canvas.width;
-        const layers = 6;
-        const ppl = 80;
-
-        for (let l = layers - 1; l >= 0; l--) {
-          const start = l * ppl;
-          const layerParticles = this.particles.slice(start, start + ppl);
-
-          // fill area
-          ctx.beginPath();
-          ctx.moveTo(0, this.canvas.height);
-          for (const p of layerParticles) {
-            ctx.lineTo(p.x, p.y);
+      draw(bands){
+        const ctx=this.ctx,w=this.canvas.width,h=this.canvas.height,layers=6,ppl=80;
+        const hues=[220,200,185,175,165,155];
+        for(let l=layers-1;l>=0;l--){
+          const start=l*ppl,lp=this.particles.slice(start,start+ppl);
+          const hue=hues[l];
+          // filled area
+          ctx.beginPath();ctx.moveTo(0,h);
+          for(const p of lp)ctx.lineTo(p.x,p.y);
+          ctx.lineTo(w,h);ctx.closePath();
+          ctx.fillStyle=`hsla(${hue},80%,${25+bands.mid*15}%,${0.08+(1-l/layers)*0.14})`;ctx.fill();
+          // glow line (smooth curve)
+          ctx.beginPath();ctx.moveTo(lp[0].x,lp[0].y);
+          for(let i=1;i<lp.length-1;i++){
+            const xc=(lp[i].x+lp[i+1].x)/2,yc=(lp[i].y+lp[i+1].y)/2;
+            ctx.quadraticCurveTo(lp[i].x,lp[i].y,xc,yc);
           }
-          ctx.lineTo(w, this.canvas.height);
-          ctx.closePath();
-          const alpha = 0.08 + (1 - l / layers) * 0.12 + bands.mid * 0.05;
-          const hue = 160 + l * 15 + bands.low * 30;
-          ctx.fillStyle = `hsla(${hue}, 70%, 40%, ${alpha})`;
-          ctx.fill();
-
-          // draw points
-          ctx.shadowBlur = 4 + bands.high * 8;
-          ctx.shadowColor = `hsl(${hue}, 100%, 60%)`;
-          for (const p of layerParticles) {
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-            ctx.fillStyle = p.color;
-            ctx.globalAlpha = p.alpha;
-            ctx.fill();
-          }
-
-          // draw line connecting points
-          ctx.beginPath();
-          ctx.moveTo(layerParticles[0].x, layerParticles[0].y);
-          for (let i = 1; i < layerParticles.length; i++) {
-            ctx.lineTo(layerParticles[i].x, layerParticles[i].y);
-          }
-          ctx.strokeStyle = `hsla(${hue}, 90%, 60%, ${0.3 + bands.mid * 0.3})`;
-          ctx.lineWidth = 1;
-          ctx.globalAlpha = 0.6;
-          ctx.stroke();
+          ctx.lineTo(lp[lp.length-1].x,lp[lp.length-1].y);
+          ctx.strokeStyle=`hsla(${hue},100%,60%,${0.5+bands.mid*0.4})`;
+          ctx.lineWidth=2.5-l*0.2;
+          ctx.shadowBlur=10+bands.high*15;ctx.shadowColor=`hsl(${hue},100%,55%)`;
+          ctx.stroke();ctx.shadowBlur=0;
         }
-        ctx.globalAlpha = 1;
-        ctx.shadowBlur = 0;
       }
-
-      resize() { this.generate(); }
-      getParticles() { return this.particles; }
+      resize(){this.generate();}
+      getParticles(){return this.particles;}
     }
 
-    // Mode 4: Fluid Field
+    // ============================================================
+    // MODE 4: FLUID (Gaussian blur blobs)
+    // ============================================================
     class FluidMode {
-      constructor(canvas, ctx) {
-        this.canvas = canvas;
-        this.ctx = ctx;
-        this.particles = [];
-        this.connections = new Connections(ctx);
-        this.time = 0;
+      constructor(canvas,ctx){this.canvas=canvas;this.ctx=ctx;this.particles=[];this.connections=new Connections(ctx);this.time=0;}
+      generate(){
+        const w=this.canvas.width,h=this.canvas.height,count=1500;
+        this.particles=[];
+        for(let i=0;i<count;i++){const x=Math.random()*w,y=Math.random()*h,hue=270+Math.random()*130;this.particles.push({x,y,vx:0,vy:0,size:4+Math.random()*4,color:`hsl(${hue},80%,55%)`,alpha:0.4,hue});}
       }
+      update(bands){
+        const w=this.canvas.width,h=this.canvas.height;this.time+=0.003+bands.mid*0.005;
+        for(const p of this.particles){
+          const n=noise.get(p.x/300+this.time,p.y/300+this.time*0.7);
+          const angle=n*Math.PI*4,speed=1+bands.low*3+bands.mid*2;
+          p.vx+=Math.cos(angle)*speed*0.3;p.vy+=Math.sin(angle)*speed*0.3;
+          p.vx*=0.95;p.vy*=0.95;p.x+=p.vx;p.y+=p.vy;
+          if(p.x<0)p.x=w;if(p.x>w)p.x=0;if(p.y<0)p.y=h;if(p.y>h)p.y=0;
+          p.size=4+bands.mid*4+n*3;
+          p.alpha=0.2+bands.high*0.3+n*0.3;
+          p.hue=270+n*130+bands.low*40;
+          p.color=`hsl(${p.hue},80%,${45+bands.mid*25}%)`;
+        }
+      }
+      draw(bands){
+        const ctx=this.ctx;
+        // gaussian-like blobs via radial gradients
+        for(const p of this.particles){
+          const grad=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size);
+          grad.addColorStop(0,`hsla(${p.hue},85%,60%,${p.alpha})`);
+          grad.addColorStop(0.5,`hsla(${p.hue},80%,50%,${p.alpha*0.4})`);
+          grad.addColorStop(1,`hsla(${p.hue},75%,40%,0)`);
+          ctx.fillStyle=grad;ctx.fillRect(p.x-p.size,p.y-p.size,p.size*2,p.size*2);
+        }
+        this.connections.draw(this.particles.slice(0,250),40+bands.low*15,'nebula',bands);
+      }
+      resize(){this.generate();}
+      getParticles(){return this.particles;}
+    }
 
-      generate() {
-        const w = this.canvas.width, h = this.canvas.height;
-        const count = 2000;
-        this.particles = [];
-        for (let i = 0; i < count; i++) {
-          const x = Math.random() * w;
-          const y = Math.random() * h;
-          const hue = 260 + Math.random() * 120;
-          const p = new Particle(x, y, `hsl(${hue}, 80%, 60%)`);
-          p.originX = x;
-          p.originY = y;
+    // ============================================================
+    // MODE 5: CODE (Aphex Twin)
+    // ============================================================
+    class CodeMode {
+      constructor(canvas,ctx){this.canvas=canvas;this.ctx=ctx;this.particles=[];this.grid=[];this.cols=0;this.rows=0;this.cellW=14;this.cellH=18;this.time=0;
+        this.snippets=['fn main(){let x=42;}','if(freq>0.5){explode();}','for i in 0..n{pulse(i);}','const signal=fft(wave);','while(alive){listen();}','return chaos^order;','#include<reality.h>','yield*oscillate(hz);','async fn decode(bits){}','match beat{1=>kick()}','let entropy=rand()*pi;','0xDEADBEEF','mov eax,[ebx+0x1F]','jmp 0x00FF::nop','λx.λy.x(y(x))','∂f/∂t=∇²f+src','emit(photon,θ,φ);','gl_FragColor=vec4(r,g,b,a)','SELECT * FROM void;','kernel<<<grid,block>>>(d)'];
+        this.flatText='';
+        this.highlights=[];// beat-synced single char highlights
+        this.prevLow=0;this.prevMid=0;
+      }
+      generate(){
+        const w=this.canvas.width,h=this.canvas.height;
+        this.cols=Math.floor(w/this.cellW);this.rows=Math.floor(h/this.cellH);
+        this.flatText='';while(this.flatText.length<this.cols*this.rows){this.flatText+=this.snippets[Math.floor(Math.random()*this.snippets.length)]+'  ';}
+        this.grid=[];this.particles=[];
+        for(let row=0;row<this.rows;row++)for(let col=0;col<this.cols;col++){
+          const idx=row*this.cols+col,ch=this.flatText[idx]||' ';
+          const x=col*this.cellW+this.cellW/2,y=row*this.cellH+this.cellH/2;
+          const p={x,y,targetX:x,targetY:y,char:ch,row,col,offsetX:0,offsetY:0,glitch:0,brightness:0.3,color:'#0f0',alpha:0.3,size:this.cellH*0.7,highlight:0};
+          this.grid.push(p);this.particles.push(p);
+        }
+      }
+      update(bands){
+        this.time+=0.02+bands.mid*0.03;
+        // detect beats: low or mid spike
+        const lowHit=bands.low>0.45&&bands.low>this.prevLow+0.05;
+        const midHit=bands.mid>0.35&&bands.mid>this.prevMid+0.04;
+        this.prevLow=bands.low;this.prevMid=bands.mid;
+        // spawn highlights on beat: mix of single chars AND consecutive code segments
+        if(lowHit){
+          // single scattered chars
+          const singles=2+Math.floor(bands.low*4);
+          for(let i=0;i<singles;i++){
+            const idx=Math.floor(Math.random()*this.grid.length);
+            if(this.grid[idx].char!==' ')this.grid[idx].highlight=1;
+          }
+          // highlight a segment (5-20 consecutive chars on a row)
+          const segCount=1+Math.floor(bands.low*2);
+          for(let s=0;s<segCount;s++){
+            const row=Math.floor(Math.random()*this.rows);
+            const startCol=Math.floor(Math.random()*(this.cols-5));
+            const len=5+Math.floor(Math.random()*15);
+            for(let c=startCol;c<Math.min(startCol+len,this.cols);c++){
+              const p=this.grid[row*this.cols+c];
+              if(p&&p.char!==' ')p.highlight=0.85+Math.random()*0.15;
+            }
+          }
+        }
+        if(midHit){
+          // single chars
+          const singles=1+Math.floor(bands.mid*3);
+          for(let i=0;i<singles;i++){
+            const idx=Math.floor(Math.random()*this.grid.length);
+            if(this.grid[idx].char!==' ')this.grid[idx].highlight=0.9;
+          }
+          // shorter segment
+          const row=Math.floor(Math.random()*this.rows);
+          const startCol=Math.floor(Math.random()*(this.cols-3));
+          const len=3+Math.floor(Math.random()*10);
+          for(let c=startCol;c<Math.min(startCol+len,this.cols);c++){
+            const p=this.grid[row*this.cols+c];
+            if(p&&p.char!==' ')p.highlight=0.8+Math.random()*0.2;
+          }
+        }
+        // high freq: occasional single char sparkle
+        if(Math.random()<0.08+bands.high*0.2){
+          const idx=Math.floor(Math.random()*this.grid.length);
+          if(this.grid[idx].char!==' ')this.grid[idx].highlight=0.6;
+        }
+
+        for(const p of this.grid){
+          // decay highlight
+          if(p.highlight>0)p.highlight-=0.03;
+          // displacement on highlighted chars
+          if(p.highlight>0.3){
+            p.offsetX=Math.sin(this.time*5+p.col)*p.highlight*4;
+            p.offsetY=Math.cos(this.time*6+p.row)*p.highlight*3;
+          } else { p.offsetX*=0.85;p.offsetY*=0.85; }
+          // glitch swap on strong highlights
+          if(p.highlight>0.8&&p.glitch===0){p.glitch=1;p.char='!@#$%^&*<>{}[]01?~'[Math.floor(Math.random()*18)];}
+          if(p.glitch>0){p.glitch-=0.04;if(p.glitch<=0){p.glitch=0;p.char=this.flatText[p.row*this.cols+p.col]||' ';}}
+          // base brightness: higher than before so code is always visible
+          const baseBright=0.35;
+          const highlightBright=p.highlight*0.65;
+          p.brightness=baseBright+highlightBright;
+          // color: green base, highlighted chars shift to white/yellow
+          if(p.highlight>0.5){
+            const hue=60+p.highlight*40;// yellow-white
+            p.color=`hsl(${hue},100%,${60+p.highlight*30}%)`;
+          } else {
+            const hue=120;
+            p.color=`hsl(${hue},70%,${35+p.brightness*25}%)`;
+          }
+          p.alpha=0.3+p.brightness*0.7;
+        }
+      }
+      draw(bands){
+        const ctx=this.ctx;
+        const fontSize=Math.floor(this.cellH*0.75);
+        ctx.font=`bold ${fontSize}px "Courier New","Fira Code",monospace`;
+        ctx.textAlign='center';ctx.textBaseline='middle';
+        // subtle scanlines
+        for(let y=0;y<this.canvas.height;y+=4){ctx.fillStyle='rgba(0,0,0,0.04)';ctx.fillRect(0,y,this.canvas.width,1);}
+        // draw all characters
+        for(const p of this.grid){
+          if(p.char===' ')continue;
+          ctx.globalAlpha=p.alpha;ctx.fillStyle=p.color;
+          // strong glow on highlighted chars
+          if(p.highlight>0.5){
+            ctx.shadowBlur=12+p.highlight*10;
+            ctx.shadowColor=p.highlight>0.7?'#fff':'#ff0';
+          } else if(p.highlight>0.2){
+            ctx.shadowBlur=5;ctx.shadowColor='#0f0';
+          } else {
+            ctx.shadowBlur=0;
+          }
+          ctx.fillText(p.char,p.targetX+p.offsetX,p.targetY+p.offsetY);
+        }
+        // occasional row flash on strong beat
+        if(bands.low>0.65&&Math.random()<0.12){
+          const row=Math.floor(Math.random()*this.rows),y=row*this.cellH;
+          ctx.fillStyle=`rgba(0,255,80,${0.06+bands.low*0.08})`;ctx.fillRect(0,y,this.canvas.width,this.cellH);
+        }
+        ctx.globalAlpha=1;ctx.shadowBlur=0;
+      }
+      resize(){this.cellW=Math.max(10,Math.min(14,this.canvas.width/100));this.cellH=Math.max(14,Math.min(18,this.canvas.height/50));this.generate();}
+      getParticles(){return this.particles.slice(0,200);}
+    }
+
+    // ============================================================
+    // MOUSE EFFECTS (per-mode)
+    // ============================================================
+    class MouseEffects {
+      constructor(canvas,ctx){this.canvas=canvas;this.ctx=ctx;this.particles=[];this.hue=0;}
+      emit(x,y,bands,mode){
+        this.hue+=0.5+bands.mid*2;if(this.hue>360)this.hue-=360;
+        const count=4+Math.floor((bands.low+bands.mid)*5);
+        for(let i=0;i<count;i++){
+          const angle=Math.random()*Math.PI*2;
+          const speed=1+Math.random()*4+bands.low*4;
+          const p={x,y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,size:0,alpha:1,life:1,mode,hue:this.hue+Math.random()*60,char:''};
+          switch(mode){
+            case 0: p.size=5+Math.random()*6; break; // bokeh
+            case 1: p.size=3;p.prevX=x;p.prevY=y; break; // light ring
+            case 2: p.size=2+Math.random()*2;p.vx*=0.6;p.vy*=0.6; break; // stardust
+            case 3: p.size=0;p.radius=0; break; // water ripple
+            case 4: p.size=6+Math.random()*5; break; // vortex blob
+            case 5: p.char='01<>{}()!@#$%'[Math.floor(Math.random()*13)];p.size=12; break; // code
+          }
           this.particles.push(p);
         }
+        // ripple for wave mode
+        if(mode===3){this.particles.push({x,y,vx:0,vy:0,size:0,alpha:0.8,life:1,mode:3,radius:0,hue:this.hue});}
+        if(this.particles.length>600)this.particles.splice(0,this.particles.length-600);
       }
-
-      update(bands) {
-        const w = this.canvas.width, h = this.canvas.height;
-        this.time += 0.003 + bands.mid * 0.005;
-
-        for (const p of this.particles) {
-          const nx = p.x / 300;
-          const ny = p.y / 300;
-          const n = noise.get(nx + this.time, ny + this.time * 0.7);
-          const angle = n * Math.PI * 4;
-          const speed = 1 + bands.low * 3 + bands.mid * 2;
-
-          p.vx += Math.cos(angle) * speed * 0.3;
-          p.vy += Math.sin(angle) * speed * 0.3;
-          p.vx *= 0.95;
-          p.vy *= 0.95;
-          p.x += p.vx;
-          p.y += p.vy;
-
-          // wrap around
-          if (p.x < 0) p.x = w;
-          if (p.x > w) p.x = 0;
-          if (p.y < 0) p.y = h;
-          if (p.y > h) p.y = 0;
-
-          p.size = 1.5 + bands.mid * 2;
-          p.alpha = 0.3 + bands.high * 0.4 + n * 0.3;
-          const hue = 260 + n * 120 + bands.low * 40;
-          p.color = `hsl(${hue}, 80%, ${50 + bands.mid * 20}%)`;
-        }
-      }
-
-      draw(bands) {
-        const ctx = this.ctx;
-        ctx.shadowBlur = 4 + bands.high * 12;
-        ctx.shadowColor = `hsl(280, 100%, 50%)`;
-
-        for (const p of this.particles) {
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-          ctx.fillStyle = p.color;
-          ctx.globalAlpha = p.alpha;
-          ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-        ctx.shadowBlur = 0;
-
-        this.connections.draw(this.particles.slice(0, 300), 35 + bands.low * 15, 'nebula', bands);
-      }
-
-      resize() { this.generate(); }
-      getParticles() { return this.particles; }
-    }
-
-    // Mode 5: Code (Aphex Twin style)
-    class CodeMode {
-      constructor(canvas, ctx) {
-        this.canvas = canvas;
-        this.ctx = ctx;
-        this.particles = [];
-        this.grid = [];
-        this.cols = 0;
-        this.rows = 0;
-        this.cellW = 14;
-        this.cellH = 18;
-        this.time = 0;
-        this.codeSnippets = [
-          'fn main() { let x = 42; }',
-          'if (freq > 0.5) { explode(); }',
-          'for i in 0..n { pulse(i); }',
-          'const signal = fft(wave);',
-          'while (alive) { listen(); }',
-          'return chaos ^ order;',
-          '#include <reality.h>',
-          'yield* oscillate(hz);',
-          'async fn decode(bits) {}',
-          'match beat { 1 => kick() }',
-          'let entropy = rand() * pi;',
-          '0xDEADBEEF 0xCAFEBABE',
-          'mov eax, [ebx+0x1F]',
-          'jmp 0x00FF :: nop',
-          'push rbp; sub rsp, 0x20',
-          'λx.λy.x(y(x))',
-          '∂f/∂t = ∇²f + src',
-          'dp[i] = max(dp[i-1], v)',
-          'node.next = node.prev;',
-          'emit(photon, θ, φ);',
-          'sync.WaitGroup.Done()',
-          'Observable.interval(16)',
-          'gl_FragColor = vec4(r,g,b,a)',
-          'kernel<<<grid,block>>>(d)',
-          'SELECT * FROM void;',
-        ];
-        this.flatText = '';
-      }
-
-      generate() {
-        const w = this.canvas.width, h = this.canvas.height;
-        this.cols = Math.floor(w / this.cellW);
-        this.rows = Math.floor(h / this.cellH);
-
-        // build a screen of code text
-        this.flatText = '';
-        while (this.flatText.length < this.cols * this.rows) {
-          const snippet = this.codeSnippets[Math.floor(Math.random() * this.codeSnippets.length)];
-          this.flatText += snippet + '  ';
-        }
-
-        this.grid = [];
-        this.particles = [];
-        for (let row = 0; row < this.rows; row++) {
-          for (let col = 0; col < this.cols; col++) {
-            const idx = row * this.cols + col;
-            const ch = this.flatText[idx] || ' ';
-            const x = col * this.cellW + this.cellW / 2;
-            const y = row * this.cellH + this.cellH / 2;
-            const p = new Particle(x, y, '#0f0');
-            p.targetX = x;
-            p.targetY = y;
-            p.char = ch;
-            p.row = row;
-            p.col = col;
-            p.offsetX = 0;
-            p.offsetY = 0;
-            p.glitch = 0;
-            p.brightness = 0.3;
-            this.grid.push(p);
-            this.particles.push(p);
+      update(bands){
+        for(let i=this.particles.length-1;i>=0;i--){
+          const p=this.particles[i];
+          p.life-=0.025;if(p.life<=0){this.particles.splice(i,1);continue;}
+          p.alpha=p.life;
+          switch(p.mode){
+            case 0: p.x+=p.vx;p.y+=p.vy;p.vx*=0.95;p.vy*=0.95;p.size*=0.99; break;
+            case 1: p.prevX=p.x;p.prevY=p.y;p.x+=p.vx;p.y+=p.vy;p.vx*=0.94;p.vy*=0.94; break;
+            case 2: p.x+=p.vx;p.y+=p.vy;p.vx*=0.98;p.vy*=0.98;p.vy+=0.05; break;
+            case 3: p.radius+=4+bands.low*3; break;
+            case 4: p.x+=p.vx;p.y+=p.vy;const a=Math.atan2(p.vy,p.vx)+0.1;const s=Math.sqrt(p.vx*p.vx+p.vy*p.vy)*0.96;p.vx=Math.cos(a)*s;p.vy=Math.sin(a)*s;p.size*=0.98; break;
+            case 5: p.x+=p.vx;p.y+=p.vy;p.vx*=0.93;p.vy*=0.93;p.vy+=0.15; break;
           }
         }
       }
-
-      update(bands) {
-        this.time += 0.02 + bands.mid * 0.03;
-        const rawLen = bands.raw.length;
-
-        for (const p of this.grid) {
-          const rowNorm = p.row / this.rows;
-          const colNorm = p.col / this.cols;
-
-          // low freq affects bottom rows (bass = bottom)
-          const lowInfluence = Math.max(0, 1 - Math.abs(rowNorm - 0.8) * 3) * bands.low;
-          // mid freq affects middle
-          const midInfluence = Math.max(0, 1 - Math.abs(rowNorm - 0.5) * 3) * bands.mid;
-          // high freq affects top
-          const highInfluence = Math.max(0, 1 - Math.abs(rowNorm - 0.2) * 3) * bands.high;
-
-          const totalInfluence = lowInfluence + midInfluence + highInfluence;
-
-          // position displacement
-          if (totalInfluence > 0.2) {
-            const freqIdx = Math.floor(colNorm * rawLen);
-            const freqVal = (bands.raw[freqIdx] || 0) / 255;
-            p.offsetX = (Math.sin(this.time * 3 + p.col * 0.5) * totalInfluence * 6) * freqVal;
-            p.offsetY = (Math.cos(this.time * 4 + p.row * 0.3) * totalInfluence * 4);
-          } else {
-            p.offsetX *= 0.9;
-            p.offsetY *= 0.9;
-          }
-
-          // glitch: random character swap on strong beats
-          if (bands.low > 0.6 && Math.random() < 0.03) {
-            p.glitch = 1;
-            const chars = '!@#$%^&*(){}[]<>/\\|~`01';
-            p.char = chars[Math.floor(Math.random() * chars.length)];
-          } else if (p.glitch > 0) {
-            p.glitch -= 0.05;
-            if (p.glitch <= 0) {
-              p.glitch = 0;
-              const idx = p.row * this.cols + p.col;
-              p.char = this.flatText[idx] || ' ';
-            }
-          }
-
-          // brightness based on frequency at this column
-          const freqIdx = Math.floor(colNorm * rawLen);
-          const freqVal = (bands.raw[freqIdx] || 0) / 255;
-          p.brightness = 0.15 + freqVal * 0.7 + totalInfluence * 0.3;
-
-          // color: green base, shifts to amber/white on high energy
-          const hue = 120 - totalInfluence * 80 - p.glitch * 40;
-          const sat = 80 - totalInfluence * 30;
-          const light = 30 + p.brightness * 40;
-          p.color = `hsl(${hue}, ${sat}%, ${light}%)`;
-          p.alpha = 0.2 + p.brightness * 0.8;
-          p.size = this.cellH * 0.7;
-        }
-      }
-
-      draw(bands) {
-        const ctx = this.ctx;
-        ctx.font = `${Math.floor(this.cellH * 0.7)}px "Courier New", "Fira Code", monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-
-        // scanline effect
-        for (let y = 0; y < this.canvas.height; y += 3) {
-          ctx.fillStyle = `rgba(0, 0, 0, ${0.03 + bands.mid * 0.02})`;
-          ctx.fillRect(0, y, this.canvas.width, 1);
-        }
-
-        // draw characters
-        for (const p of this.grid) {
-          if (p.char === ' ') continue;
-          ctx.globalAlpha = p.alpha;
-          ctx.fillStyle = p.color;
-
-          if (p.glitch > 0.5) {
-            ctx.shadowBlur = 8;
-            ctx.shadowColor = '#ff0';
-          } else if (p.brightness > 0.6) {
-            ctx.shadowBlur = 4;
-            ctx.shadowColor = p.color;
-          } else {
-            ctx.shadowBlur = 0;
-          }
-
-          ctx.fillText(p.char, p.targetX + p.offsetX, p.targetY + p.offsetY);
-        }
-
-        // occasional full-line glitch flash
-        if (bands.low > 0.7 && Math.random() < 0.1) {
-          const row = Math.floor(Math.random() * this.rows);
-          const y = row * this.cellH;
-          ctx.fillStyle = `rgba(0, 255, 100, ${0.08 + bands.low * 0.1})`;
-          ctx.fillRect(0, y, this.canvas.width, this.cellH);
-        }
-
-        ctx.globalAlpha = 1;
-        ctx.shadowBlur = 0;
-      }
-
-      resize() {
-        this.cellW = Math.max(10, Math.min(14, this.canvas.width / 100));
-        this.cellH = Math.max(14, Math.min(18, this.canvas.height / 50));
-        this.generate();
-      }
-      getParticles() { return this.particles.slice(0, 200); }
-    }
-
-    // ============================================================
-    // MOUSE TRAIL
-    // ============================================================
-    class MouseTrail {
-      constructor(canvas, ctx) {
-        this.canvas = canvas;
-        this.ctx = ctx;
-        this.particles = [];
-        this.mouseX = 0;
-        this.mouseY = 0;
-        this.isActive = false;
-        this.hue = 0;
-      }
-
-      emit(x, y, bands) {
-        this.mouseX = x;
-        this.mouseY = y;
-        const count = 3 + Math.floor((bands.low + bands.mid) * 5);
-        for (let i = 0; i < count; i++) {
-          const angle = Math.random() * Math.PI * 2;
-          const speed = 1 + Math.random() * 3 + bands.low * 4;
-          const hue = this.hue + Math.random() * 60;
-          this.particles.push({
-            x, y,
-            vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed,
-            size: 2 + Math.random() * 3 + bands.mid * 3,
-            alpha: 1,
-            color: `hsl(${hue}, 100%, 65%)`,
-            life: 1,
-          });
-        }
-        if (this.particles.length > 500) {
-          this.particles.splice(0, this.particles.length - 500);
-        }
-      }
-
-      update(bands) {
-        this.hue += 0.5 + bands.mid * 2;
-        if (this.hue > 360) this.hue -= 360;
-
-        for (let i = this.particles.length - 1; i >= 0; i--) {
-          const p = this.particles[i];
-          p.x += p.vx;
-          p.y += p.vy;
-          p.vx *= 0.96;
-          p.vy *= 0.96;
-          p.vy += 0.1;
-          p.life -= 0.02;
-          p.alpha = p.life;
-          p.size *= 0.98;
-          if (p.life <= 0) this.particles.splice(i, 1);
-        }
-      }
-
-      draw(bands) {
-        const ctx = this.ctx;
-        if (this.particles.length === 0) return;
-
-        ctx.shadowBlur = 10 + bands.high * 15;
-        ctx.shadowColor = `hsl(${this.hue}, 100%, 60%)`;
-
-        for (const p of this.particles) {
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-          ctx.fillStyle = p.color;
-          ctx.globalAlpha = p.alpha;
-          ctx.fill();
-        }
-
-        // draw connections between nearby trail particles
-        const maxDist = 50;
-        const len = Math.min(this.particles.length, 100);
-        ctx.shadowBlur = 0;
-        for (let i = 0; i < len; i++) {
-          const a = this.particles[this.particles.length - 1 - i];
-          if (!a) break;
-          for (let j = i + 1; j < len; j++) {
-            const b = this.particles[this.particles.length - 1 - j];
-            if (!b) break;
-            const dx = a.x - b.x;
-            const dy = a.y - b.y;
-            const dist = dx * dx + dy * dy;
-            if (dist < maxDist * maxDist) {
-              const alpha = (1 - Math.sqrt(dist) / maxDist) * Math.min(a.alpha, b.alpha) * 0.5;
-              ctx.beginPath();
-              ctx.moveTo(a.x, a.y);
-              ctx.lineTo(b.x, b.y);
-              ctx.strokeStyle = `hsla(${this.hue}, 100%, 60%, ${alpha})`;
-              ctx.lineWidth = 0.8;
-              ctx.stroke();
-            }
+      draw(bands){
+        const ctx=this.ctx;
+        for(const p of this.particles){
+          ctx.globalAlpha=p.alpha;
+          switch(p.mode){
+            case 0: // bokeh burst
+              const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size);
+              g.addColorStop(0,`hsla(${p.hue},100%,80%,${p.alpha})`);g.addColorStop(1,`hsla(${p.hue},100%,50%,0)`);
+              ctx.fillStyle=g;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill();break;
+            case 1: // light ring trail
+              ctx.beginPath();ctx.moveTo(p.prevX,p.prevY);ctx.lineTo(p.x,p.y);
+              ctx.strokeStyle=`hsla(${p.hue},100%,65%,${p.alpha})`;ctx.lineWidth=3;ctx.lineCap='round';ctx.stroke();break;
+            case 2: // stardust
+              ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fillStyle=`hsla(${p.hue},90%,70%,${p.alpha})`;ctx.fill();
+              ctx.beginPath();ctx.arc(p.x,p.y,p.size*0.3,0,Math.PI*2);ctx.fillStyle=`hsla(${p.hue},100%,95%,${p.alpha})`;ctx.fill();break;
+            case 3: // water ripple
+              ctx.beginPath();ctx.arc(p.x,p.y,p.radius,0,Math.PI*2);ctx.strokeStyle=`hsla(${p.hue},90%,55%,${p.alpha*0.6})`;ctx.lineWidth=2;ctx.stroke();break;
+            case 4: // vortex blob
+              const g2=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size);
+              g2.addColorStop(0,`hsla(${p.hue},90%,65%,${p.alpha})`);g2.addColorStop(1,`hsla(${p.hue},80%,40%,0)`);
+              ctx.fillStyle=g2;ctx.fillRect(p.x-p.size,p.y-p.size,p.size*2,p.size*2);break;
+            case 5: // code fragment
+              ctx.font='bold 12px "Courier New",monospace';ctx.fillStyle=`hsla(120,80%,60%,${p.alpha})`;ctx.shadowBlur=4;ctx.shadowColor='#0f0';
+              ctx.fillText(p.char,p.x,p.y);ctx.shadowBlur=0;break;
           }
         }
-
-        ctx.globalAlpha = 1;
-        ctx.shadowBlur = 0;
+        ctx.globalAlpha=1;
       }
     }
 
@@ -1539,336 +801,174 @@
     // TRANSITION MANAGER
     // ============================================================
     class TransitionManager {
-      constructor(canvas, ctx) {
-        this.canvas = canvas;
-        this.ctx = ctx;
-        this.transitioning = false;
-        this.progress = 0;
-        this.debris = [];
-        this.phase = 'idle'; // idle | explode | regroup
+      constructor(canvas,ctx){this.canvas=canvas;this.ctx=ctx;this.transitioning=false;this.progress=0;this.debris=[];this.phase='idle';}
+      start(fromParticles){
+        this.transitioning=true;this.progress=0;this.phase='explode';
+        const cx=this.canvas.width/2,cy=this.canvas.height/2;
+        const count=Math.min(fromParticles.length,300),step=Math.max(1,Math.floor(fromParticles.length/count));
+        this.debris=[];
+        for(let i=0;i<fromParticles.length;i+=step){const p=fromParticles[i];const angle=Math.atan2((p.y||p.targetY)-cy,(p.x||p.targetX)-cx)+(Math.random()-0.5)*0.5;const speed=5+Math.random()*15;this.debris.push({x:p.x||p.targetX,y:p.y||p.targetY,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,size:p.size||2,color:p.color||'#fff',alpha:1});}
       }
-
-      start(fromParticles) {
-        this.transitioning = true;
-        this.progress = 0;
-        this.phase = 'explode';
-        const cx = this.canvas.width / 2, cy = this.canvas.height / 2;
-
-        // sample debris from old particles
-        const count = Math.min(fromParticles.length, 300);
-        const step = Math.max(1, Math.floor(fromParticles.length / count));
-        this.debris = [];
-        for (let i = 0; i < fromParticles.length; i += step) {
-          const p = fromParticles[i];
-          const angle = Math.atan2(p.y - cy, p.x - cx) + (Math.random() - 0.5) * 0.5;
-          const speed = 5 + Math.random() * 15;
-          this.debris.push({
-            x: p.x, y: p.y,
-            vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed,
-            size: p.size || 2,
-            color: p.color,
-            alpha: 1,
-          });
-        }
+      update(){
+        if(!this.transitioning)return;this.progress+=0.025;
+        if(this.phase==='explode'){for(const d of this.debris){d.x+=d.vx;d.y+=d.vy;d.vx*=0.96;d.vy*=0.96;d.alpha*=0.94;d.size*=0.97;}if(this.progress>0.5)this.phase='regroup';}
+        else if(this.phase==='regroup'){for(const d of this.debris)d.alpha*=0.88;if(this.progress>=1){this.transitioning=false;this.phase='idle';this.debris=[];}}
       }
-
-      update() {
-        if (!this.transitioning) return;
-        this.progress += 0.025;
-
-        if (this.phase === 'explode') {
-          for (const d of this.debris) {
-            d.x += d.vx;
-            d.y += d.vy;
-            d.vx *= 0.96;
-            d.vy *= 0.96;
-            d.alpha *= 0.95;
-            d.size *= 0.97;
-          }
-          if (this.progress > 0.5) {
-            this.phase = 'regroup';
-          }
-        } else if (this.phase === 'regroup') {
-          for (const d of this.debris) {
-            d.alpha *= 0.9;
-          }
-          if (this.progress >= 1) {
-            this.transitioning = false;
-            this.phase = 'idle';
-            this.debris = [];
-          }
-        }
+      draw(){
+        if(!this.transitioning)return;const ctx=this.ctx;
+        for(const d of this.debris){if(d.alpha<0.01)continue;ctx.beginPath();ctx.arc(d.x,d.y,d.size,0,Math.PI*2);ctx.fillStyle=d.color;ctx.globalAlpha=d.alpha;ctx.fill();}
+        ctx.globalAlpha=1;
       }
+    }
 
-      draw() {
-        if (!this.transitioning) return;
-        const ctx = this.ctx;
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = '#fff';
-        for (const d of this.debris) {
-          if (d.alpha < 0.01) continue;
-          ctx.beginPath();
-          ctx.arc(d.x, d.y, d.size, 0, Math.PI * 2);
-          ctx.fillStyle = d.color;
-          ctx.globalAlpha = d.alpha;
-          ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-        ctx.shadowBlur = 0;
+    // ============================================================
+    // ARC MENU
+    // ============================================================
+    class ArcMenu {
+      constructor(){
+        this.el=document.getElementById('arcMenu');this.open=false;
+        this.items=[];this.build();
       }
-
-      isDone() { return !this.transitioning; }
+      build(){
+        this.el.innerHTML='';this.items=[];
+        // Two arcs: outer = visual modes, inner = music tracks
+        const outerR=145,innerR=85;
+        const startA=Math.PI*0.85,endA=Math.PI*1.5;
+        // Section label: VISUAL
+        const labelV=document.createElement('div');labelV.className='arc-separator';
+        labelV.textContent='VISUAL';labelV.style.left='20px';labelV.style.top='110px';
+        this.el.appendChild(labelV);
+        // Outer arc: modes
+        MODE_NAMES.forEach((name,i)=>{
+          const angle=startA+(endA-startA)*(i/(MODE_NAMES.length-1));
+          const x=150+Math.cos(angle)*outerR-25;
+          const y=280+Math.sin(angle)*outerR-10;
+          const div=document.createElement('div');
+          div.className='arc-item';div.textContent=name;
+          div.style.left=x+'px';div.style.top=y+'px';
+          div.dataset.type='mode';div.dataset.idx=i;
+          this.el.appendChild(div);this.items.push(div);
+        });
+        // Section label: MUSIC
+        const labelM=document.createElement('div');labelM.className='arc-separator';
+        labelM.textContent='MUSIC';labelM.style.left='75px';labelM.style.top='220px';
+        this.el.appendChild(labelM);
+        // Inner arc: tracks + upload
+        const trackItems=[...TRACK_NAMES.map((n,i)=>({label:n,type:'track',idx:i})),{label:'Upload',type:'upload',idx:0}];
+        trackItems.forEach((item,i)=>{
+          const angle=startA+0.15+(endA-startA-0.3)*(i/(trackItems.length-1));
+          const x=150+Math.cos(angle)*innerR-25;
+          const y=280+Math.sin(angle)*innerR-10;
+          const div=document.createElement('div');
+          div.className='arc-item';div.textContent=item.label;
+          div.style.left=x+'px';div.style.top=y+'px';
+          div.dataset.type=item.type;div.dataset.idx=item.idx;
+          this.el.appendChild(div);this.items.push(div);
+        });
+      }
+      toggle(){this.open=!this.open;this.el.classList.toggle('open',this.open);document.getElementById('turntable').classList.toggle('open',this.open);}
+      close(){this.open=false;this.el.classList.remove('open');document.getElementById('turntable').classList.remove('open');}
+      updateActive(mode,track){
+        this.items.forEach(div=>{
+          const isMode=div.dataset.type==='mode'&&parseInt(div.dataset.idx)===mode;
+          const isTrack=div.dataset.type==='track'&&parseInt(div.dataset.idx)===track;
+          div.classList.toggle('active',isMode||isTrack);
+        });
+      }
     }
 
     // ============================================================
     // MAIN APP
     // ============================================================
     class App {
-      constructor() {
-        this.canvas = document.getElementById('canvas');
-        this.ctx = this.canvas.getContext('2d');
-        this.audio = new AudioEngine();
-        this.background = new Background(this.canvas, this.ctx);
-        this.transition = new TransitionManager(this.canvas, this.ctx);
-        this.mouseTrail = new MouseTrail(this.canvas, this.ctx);
-        this.isStarted = false;
-        this.currentMode = 0;
-        this.modes = [];
-        this.touchStartX = 0;
-        this.touchStartY = 0;
-        this.mouseDown = false;
-        this.hintTimeout = null;
-
-        this.resize();
-        this.initModes();
-        this.bindEvents();
+      constructor(){
+        this.canvas=document.getElementById('canvas');this.ctx=this.canvas.getContext('2d');
+        this.audio=new AudioEngine();
+        this.background=new Background(this.canvas,this.ctx);
+        this.transition=new TransitionManager(this.canvas,this.ctx);
+        this.mouseEffects=new MouseEffects(this.canvas,this.ctx);
+        this.arcMenu=new ArcMenu();
+        this.isStarted=false;this.currentMode=0;this.modes=[];
+        this.mouseDown=false;this.touchStartX=0;this.touchStartY=0;
+        this.hintTimeout=null;this.turntableAngle=0;
+        this.resize();this.initModes();this.bindEvents();
       }
-
-      initModes() {
-        this.modes = [
-          new TextMode(this.canvas, this.ctx),
-          new RingMode(this.canvas, this.ctx),
-          new GalaxyMode(this.canvas, this.ctx),
-          new WaveMode(this.canvas, this.ctx),
-          new FluidMode(this.canvas, this.ctx),
-          new CodeMode(this.canvas, this.ctx),
-        ];
-        for (const m of this.modes) m.generate();
+      initModes(){
+        this.modes=[new TextMode(this.canvas,this.ctx),new RingMode(this.canvas,this.ctx),new GalaxyMode(this.canvas,this.ctx),new WaveMode(this.canvas,this.ctx),new FluidMode(this.canvas,this.ctx),new CodeMode(this.canvas,this.ctx)];
+        for(const m of this.modes)m.generate();
       }
-
-      start() {
-        if (this.isStarted) return;
-        this.isStarted = true;
+      start(){
+        if(this.isStarted)return;this.isStarted=true;
         this.audio.init();
-        document.getElementById('overlay').classList.add('hidden');
-        this.audio.playBuiltinTrack(0);
-        this.updatePlayBtn();
-        this.showModeHint();
-        this.animate();
+        // tonearm drop animation
+        document.querySelector('.vinyl-tonearm').classList.add('dropped');
+        setTimeout(()=>{
+          document.getElementById('overlay').classList.add('hidden');
+          this.audio.playBuiltinTrack(0);this.arcMenu.updateActive(0,0);this.showModeHint();this.animate();
+        },800);
       }
-
-      switchMode(newMode) {
-        if (newMode === this.currentMode || this.transition.transitioning) return;
-        const oldParticles = this.modes[this.currentMode].getParticles();
-        this.transition.start(oldParticles);
-        this.currentMode = newMode;
-        this.modes[newMode].generate();
-        this.updateModeButtons();
-        this.showModeHint();
+      switchMode(m){
+        if(m===this.currentMode||this.transition.transitioning)return;
+        this.transition.start(this.modes[this.currentMode].getParticles());
+        this.currentMode=m;this.modes[m].resize();
+        this.arcMenu.updateActive(m,this.audio.currentTrack);this.showModeHint();
       }
-
-      nextMode() { this.switchMode((this.currentMode + 1) % this.modes.length); }
-      prevMode() { this.switchMode((this.currentMode - 1 + this.modes.length) % this.modes.length); }
-
-      showModeHint() {
-        const el = document.getElementById('modeHint');
-        el.textContent = MODE_NAMES[this.currentMode];
-        el.classList.remove('fade');
-        clearTimeout(this.hintTimeout);
-        this.hintTimeout = setTimeout(() => el.classList.add('fade'), 2000);
+      nextMode(){this.switchMode((this.currentMode+1)%this.modes.length);}
+      prevMode(){this.switchMode((this.currentMode-1+this.modes.length)%this.modes.length);}
+      showModeHint(){const el=document.getElementById('modeHint');el.textContent=MODE_NAMES[this.currentMode];el.classList.remove('fade');clearTimeout(this.hintTimeout);this.hintTimeout=setTimeout(()=>el.classList.add('fade'),2000);}
+      animate(){
+        const bands=this.audio.getFrequencyBands();
+        this.background.draw(MODE_PALETTES[this.currentMode],bands);
+        this.transition.update();this.transition.draw();
+        if(this.transition.phase!=='explode'){this.modes[this.currentMode].update(bands);this.modes[this.currentMode].draw(bands);}
+        this.mouseEffects.update(bands);this.mouseEffects.draw(bands);
+        // rotate turntable disc
+        if(this.audio.isPlaying){this.turntableAngle+=2+bands.low*3;}
+        const disc=document.querySelector('.turntable-dot');
+        if(disc)disc.style.transform=`translateX(-50%) rotate(${this.turntableAngle}deg)`;
+        requestAnimationFrame(()=>this.animate());
       }
-
-      animate() {
-        const bands = this.audio.getFrequencyBands();
-        const palette = MODE_PALETTES[this.currentMode];
-
-        // background
-        this.background.draw(palette, bands);
-
-        // transition debris
-        this.transition.update();
-        this.transition.draw();
-
-        // current mode
-        if (this.transition.phase !== 'explode') {
-          this.modes[this.currentMode].update(bands);
-          this.modes[this.currentMode].draw(bands);
-        }
-
-        // mouse trail
-        this.mouseTrail.update(bands);
-        this.mouseTrail.draw(bands);
-
-        requestAnimationFrame(() => this.animate());
-      }
-
-      resize() {
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
-        if (this.modes) {
-          for (const m of this.modes) m.resize();
-        }
-      }
-
-      updatePlayBtn() {
-        const btn = document.getElementById('playBtn');
-        btn.innerHTML = this.audio.isPlaying ? '&#9646;&#9646; Pause' : '&#9654; Play';
-        btn.classList.toggle('active', this.audio.isPlaying);
-      }
-
-      updateTrackBtns() {
-        document.querySelectorAll('.track-btn').forEach(btn => {
-          btn.classList.toggle('active', parseInt(btn.dataset.track) === this.audio.currentTrack);
+      resize(){this.canvas.width=window.innerWidth;this.canvas.height=window.innerHeight;if(this.modes)for(const m of this.modes)m.resize();}
+      bindEvents(){
+        // start
+        document.getElementById('overlay').addEventListener('click',()=>this.start());
+        // turntable toggle
+        document.getElementById('turntable').addEventListener('click',(e)=>{e.stopPropagation();if(!this.isStarted)this.start();this.arcMenu.toggle();});
+        // arc menu clicks
+        document.getElementById('arcMenu').addEventListener('click',(e)=>{
+          const item=e.target.closest('.arc-item');if(!item)return;
+          const type=item.dataset.type,idx=parseInt(item.dataset.idx);
+          if(type==='mode')this.switchMode(idx);
+          else if(type==='track'){this.audio.playBuiltinTrack(idx);this.arcMenu.updateActive(this.currentMode,idx);}
+          else if(type==='upload')document.getElementById('fileInput').click();
+          this.arcMenu.close();
         });
-      }
-
-      updateModeButtons() {
-        document.querySelectorAll('.mode-btn').forEach(btn => {
-          btn.classList.toggle('active', parseInt(btn.dataset.mode) === this.currentMode);
-        });
-      }
-
-      bindEvents() {
-        document.getElementById('overlay').addEventListener('click', () => this.start());
-
-        document.getElementById('playBtn').addEventListener('click', () => {
-          if (!this.isStarted) this.start();
-          this.audio.toggle();
-          this.updatePlayBtn();
-        });
-
-        document.getElementById('uploadBtn').addEventListener('click', () => {
-          document.getElementById('fileInput').click();
-        });
-
-        document.getElementById('fileInput').addEventListener('change', async (e) => {
-          const file = e.target.files[0];
-          if (!file) return;
-          if (!this.isStarted) this.start();
-          await this.audio.loadFile(file);
-          this.updatePlayBtn();
-          this.updateTrackBtns();
-        });
-
-        let textTimeout;
-        document.getElementById('textInput').addEventListener('input', (e) => {
-          clearTimeout(textTimeout);
-          textTimeout = setTimeout(() => {
-            this.modes[0].setText(e.target.value || 'MUSIC');
-          }, 300);
-        });
-
-        document.querySelectorAll('.track-btn').forEach(btn => {
-          btn.addEventListener('click', () => {
-            if (!this.isStarted) this.start();
-            this.audio.playBuiltinTrack(parseInt(btn.dataset.track));
-            this.updatePlayBtn();
-            this.updateTrackBtns();
-          });
-        });
-
-        document.querySelectorAll('.mode-btn').forEach(btn => {
-          btn.addEventListener('click', () => {
-            if (!this.isStarted) this.start();
-            this.switchMode(parseInt(btn.dataset.mode));
-          });
-        });
-
+        // close menu on canvas click
+        this.canvas.addEventListener('click',()=>{if(this.arcMenu.open){this.arcMenu.close();return;}if(!this.isStarted)this.start();});
+        // file input
+        document.getElementById('fileInput').addEventListener('change',async(e)=>{const f=e.target.files[0];if(!f)return;if(!this.isStarted)this.start();await this.audio.loadFile(f);this.arcMenu.updateActive(this.currentMode,-1);});
+        // text input
+        let tt;document.getElementById('textInput').addEventListener('input',(e)=>{clearTimeout(tt);tt=setTimeout(()=>{this.modes[0].setText(e.target.value||'MUSIC');},300);});
         // keyboard
-        document.addEventListener('keydown', (e) => {
-          if (e.target.tagName === 'INPUT') return;
-          switch (e.code) {
-            case 'Space':
-              e.preventDefault();
-              if (!this.isStarted) this.start();
-              this.audio.toggle();
-              this.updatePlayBtn();
-              break;
-            case 'ArrowRight': this.nextMode(); break;
-            case 'ArrowLeft': this.prevMode(); break;
-          }
-        });
-
-        // touch swipe
-        this.canvas.addEventListener('touchstart', (e) => {
-          this.touchStartX = e.touches[0].clientX;
-          this.touchStartY = e.touches[0].clientY;
-        }, { passive: true });
-
-        this.canvas.addEventListener('touchend', (e) => {
-          const dx = e.changedTouches[0].clientX - this.touchStartX;
-          const dy = e.changedTouches[0].clientY - this.touchStartY;
-          if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
-            if (dx > 0) this.prevMode();
-            else this.nextMode();
-          }
-        }, { passive: true });
-
-        // click canvas to start
-        this.canvas.addEventListener('click', () => {
-          if (!this.isStarted) this.start();
-        });
-
-        // mouse trail interaction
-        this.canvas.addEventListener('mousedown', (e) => {
-          this.mouseDown = true;
-          const bands = this.audio.getFrequencyBands();
-          this.mouseTrail.emit(e.clientX, e.clientY, bands);
-        });
-        this.canvas.addEventListener('mousemove', (e) => {
-          if (!this.mouseDown) return;
-          const bands = this.audio.getFrequencyBands();
-          this.mouseTrail.emit(e.clientX, e.clientY, bands);
-        });
-        this.canvas.addEventListener('mouseup', () => { this.mouseDown = false; });
-        this.canvas.addEventListener('mouseleave', () => { this.mouseDown = false; });
-
-        // touch trail
-        this.canvas.addEventListener('touchmove', (e) => {
-          if (e.touches.length === 1) {
-            const bands = this.audio.getFrequencyBands();
-            this.mouseTrail.emit(e.touches[0].clientX, e.touches[0].clientY, bands);
-          }
-        }, { passive: true });
-
-        // drag and drop
-        const dropZone = document.getElementById('dropZone');
-        document.addEventListener('dragenter', (e) => { e.preventDefault(); dropZone.classList.add('visible'); });
-        document.addEventListener('dragover', (e) => { e.preventDefault(); });
-        document.addEventListener('dragleave', (e) => { if (!e.relatedTarget) dropZone.classList.remove('visible'); });
-        document.addEventListener('drop', async (e) => {
-          e.preventDefault();
-          dropZone.classList.remove('visible');
-          const file = e.dataTransfer.files[0];
-          if (file && file.type.startsWith('audio/')) {
-            if (!this.isStarted) this.start();
-            await this.audio.loadFile(file);
-            this.updatePlayBtn();
-            this.updateTrackBtns();
-          }
-        });
-
-        window.addEventListener('resize', () => this.resize());
-
-        // show nav hint briefly
-        const navHint = document.getElementById('navHint');
-        navHint.textContent = '← → Switch Mode | Space Play/Pause';
-        setTimeout(() => { navHint.style.opacity = '0'; }, 5000);
+        document.addEventListener('keydown',(e)=>{if(e.target.tagName==='INPUT')return;switch(e.code){case'Space':e.preventDefault();if(!this.isStarted)this.start();this.audio.toggle();break;case'ArrowRight':this.nextMode();break;case'ArrowLeft':this.prevMode();break;}});
+        // mouse trail
+        this.canvas.addEventListener('mousedown',(e)=>{if(this.arcMenu.open)return;this.mouseDown=true;this.mouseEffects.emit(e.clientX,e.clientY,this.audio.getFrequencyBands(),this.currentMode);});
+        this.canvas.addEventListener('mousemove',(e)=>{if(!this.mouseDown)return;this.mouseEffects.emit(e.clientX,e.clientY,this.audio.getFrequencyBands(),this.currentMode);});
+        this.canvas.addEventListener('mouseup',()=>{this.mouseDown=false;});
+        this.canvas.addEventListener('mouseleave',()=>{this.mouseDown=false;});
+        // touch
+        this.canvas.addEventListener('touchstart',(e)=>{this.touchStartX=e.touches[0].clientX;this.touchStartY=e.touches[0].clientY;},{passive:true});
+        this.canvas.addEventListener('touchmove',(e)=>{if(e.touches.length===1)this.mouseEffects.emit(e.touches[0].clientX,e.touches[0].clientY,this.audio.getFrequencyBands(),this.currentMode);},{passive:true});
+        this.canvas.addEventListener('touchend',(e)=>{const dx=e.changedTouches[0].clientX-this.touchStartX,dy=e.changedTouches[0].clientY-this.touchStartY;if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy)){if(dx>0)this.prevMode();else this.nextMode();}},{passive:true});
+        // drag drop
+        document.addEventListener('dragenter',(e)=>{e.preventDefault();document.getElementById('dropZone').classList.add('visible');});
+        document.addEventListener('dragover',(e)=>{e.preventDefault();});
+        document.addEventListener('dragleave',(e)=>{if(!e.relatedTarget)document.getElementById('dropZone').classList.remove('visible');});
+        document.addEventListener('drop',async(e)=>{e.preventDefault();document.getElementById('dropZone').classList.remove('visible');const f=e.dataTransfer.files[0];if(f&&f.type.startsWith('audio/')){if(!this.isStarted)this.start();await this.audio.loadFile(f);this.arcMenu.updateActive(this.currentMode,-1);}});
+        window.addEventListener('resize',()=>this.resize());
       }
     }
-
-    const app = new App();
+    const app=new App();
   })();
   </script>
 </body>
