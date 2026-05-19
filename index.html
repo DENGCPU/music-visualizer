@@ -1,0 +1,1875 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Particle Music Visualizer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #000;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: #fff;
+      height: 100vh;
+      touch-action: none;
+    }
+
+    canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
+
+    #overlay {
+      position: fixed; inset: 0;
+      background: rgba(0, 0, 0, 0.92);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 100; cursor: pointer;
+      transition: opacity 0.6s ease;
+    }
+    #overlay.hidden { opacity: 0; pointer-events: none; }
+    #overlay h1 {
+      font-size: clamp(1.5rem, 5vw, 2.5rem);
+      margin-bottom: 0.8rem;
+      background: linear-gradient(135deg, #0ff, #f0f, #ff0, #0ff);
+      background-size: 300% 300%;
+      animation: gradientShift 4s ease infinite;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    #overlay p { color: #666; font-size: 0.9rem; }
+    @keyframes gradientShift {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+
+    #controls {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      padding: 10px 16px;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(12px);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex; align-items: center; gap: 8px;
+      z-index: 50; flex-wrap: wrap;
+      transition: transform 0.3s ease;
+    }
+    #controls.hidden { transform: translateY(100%); }
+
+    .btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #ccc; padding: 7px 14px;
+      border-radius: 6px; cursor: pointer;
+      font-size: 12px; transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .btn:hover { background: rgba(255, 255, 255, 0.15); color: #fff; }
+    .btn.active { background: rgba(0, 255, 255, 0.15); border-color: #0ff; color: #0ff; }
+
+    .mode-list { display: flex; gap: 4px; margin-left: auto; }
+    .mode-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #888; padding: 5px 10px;
+      border-radius: 4px; cursor: pointer;
+      font-size: 11px; transition: all 0.2s;
+    }
+    .mode-btn:hover { color: #fff; border-color: rgba(255, 255, 255, 0.3); }
+    .mode-btn.active { color: #0ff; border-color: #0ff; background: rgba(0, 255, 255, 0.1); }
+
+    .track-list { display: flex; gap: 4px; }
+    .track-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #888; padding: 5px 10px;
+      border-radius: 4px; cursor: pointer;
+      font-size: 11px; transition: all 0.2s;
+    }
+    .track-btn:hover { color: #fff; border-color: rgba(255, 255, 255, 0.3); }
+    .track-btn.active { color: #f0f; border-color: #f0f; background: rgba(255, 0, 255, 0.1); }
+
+    #textInput {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff; padding: 7px 10px;
+      border-radius: 6px; font-size: 12px;
+      width: 120px; outline: none;
+    }
+    #textInput:focus { border-color: #0ff; }
+    #fileInput { display: none; }
+
+    #dropZone {
+      position: fixed; inset: 0;
+      background: rgba(0, 255, 255, 0.08);
+      border: 3px dashed rgba(0, 255, 255, 0.5);
+      display: none; align-items: center; justify-content: center;
+      z-index: 90; font-size: 1.2rem; color: #0ff;
+    }
+    #dropZone.visible { display: flex; }
+
+    #modeHint {
+      position: fixed; top: 16px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 13px; color: rgba(255, 255, 255, 0.5);
+      z-index: 50; transition: opacity 0.5s;
+      pointer-events: none;
+    }
+    #modeHint.fade { opacity: 0; }
+
+    #navHint {
+      position: fixed; bottom: 70px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px; color: rgba(255, 255, 255, 0.3);
+      z-index: 50; pointer-events: none;
+    }
+
+    @media (max-width: 600px) {
+      #controls { padding: 8px 10px; gap: 6px; }
+      .btn { padding: 6px 10px; font-size: 11px; }
+      #textInput { width: 80px; }
+      .mode-btn, .track-btn { padding: 4px 7px; font-size: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="overlay">
+    <h1>Particle Music Visualizer</h1>
+    <p>Tap anywhere to start</p>
+  </div>
+
+  <div id="dropZone">Drop audio file here</div>
+  <canvas id="canvas"></canvas>
+  <div id="modeHint"></div>
+  <div id="navHint"></div>
+
+  <div id="controls">
+    <button class="btn" id="playBtn">&#9654; Play</button>
+    <button class="btn" id="uploadBtn">Upload</button>
+    <input type="file" id="fileInput" accept="audio/*">
+    <input type="text" id="textInput" placeholder="Text..." value="MUSIC">
+    <div class="track-list">
+      <button class="track-btn active" data-track="0">Lo-fi</button>
+      <button class="track-btn" data-track="1">Glitch</button>
+      <button class="track-btn" data-track="2">Psy</button>
+      <button class="track-btn" data-track="3">Dubstep</button>
+    </div>
+    <div class="mode-list">
+      <button class="mode-btn active" data-mode="0">Text</button>
+      <button class="mode-btn" data-mode="1">Ring</button>
+      <button class="mode-btn" data-mode="2">Galaxy</button>
+      <button class="mode-btn" data-mode="3">Wave</button>
+      <button class="mode-btn" data-mode="4">Fluid</button>
+      <button class="mode-btn" data-mode="5">Code</button>
+    </div>
+  </div>
+
+  <script>
+  (() => {
+    // ============================================================
+    // AUDIO ENGINE
+    // ============================================================
+    class AudioEngine {
+      constructor() {
+        this.ctx = null;
+        this.analyser = null;
+        this.freqData = null;
+        this.timeData = null;
+        this.source = null;
+        this.isPlaying = false;
+        this.currentTrack = 0;
+        this.gainNode = null;
+        this.oscillators = [];
+      }
+
+      init() {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this.analyser = this.ctx.createAnalyser();
+        this.analyser.fftSize = 512;
+        this.analyser.smoothingTimeConstant = 0.82;
+        this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
+        this.timeData = new Uint8Array(this.analyser.frequencyBinCount);
+        this.gainNode = this.ctx.createGain();
+        this.gainNode.connect(this.analyser);
+        this.analyser.connect(this.ctx.destination);
+      }
+
+      getFrequencyBands() {
+        if (!this.analyser) return { low: 0, mid: 0, high: 0, raw: [], waveform: [] };
+        this.analyser.getByteFrequencyData(this.freqData);
+        this.analyser.getByteTimeDomainData(this.timeData);
+        const len = this.freqData.length;
+        const third = Math.floor(len / 3);
+        let low = 0, mid = 0, high = 0;
+        for (let i = 0; i < third; i++) low += this.freqData[i];
+        for (let i = third; i < third * 2; i++) mid += this.freqData[i];
+        for (let i = third * 2; i < len; i++) high += this.freqData[i];
+        low = low / third / 255;
+        mid = mid / third / 255;
+        high = high / (len - third * 2) / 255;
+        return { low, mid, high, raw: this.freqData, waveform: this.timeData };
+      }
+
+      playBuiltinTrack(trackIndex) {
+        this.stop();
+        this.currentTrack = trackIndex;
+        const tempo = [85, 140, 145, 140][trackIndex];
+        const beatInterval = 60 / tempo;
+        switch (trackIndex) {
+          case 0: this._lofi(beatInterval); break;
+          case 1: this._glitch(beatInterval); break;
+          case 2: this._psytrance(beatInterval); break;
+          case 3: this._dubstep(beatInterval); break;
+        }
+        this.isPlaying = true;
+      }
+
+      // Lo-fi Hip Hop: muffled kick, vinyl crackle, jazz chords, slow swing
+      _lofi(beat) {
+        const now = this.ctx.currentTime;
+        const duration = 24;
+
+        const scheduleKick = (time) => {
+          const osc = this.ctx.createOscillator();
+          const filter = this.ctx.createBiquadFilter();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(100, time);
+          osc.frequency.exponentialRampToValueAtTime(35, time + 0.12);
+          filter.type = 'lowpass'; filter.frequency.value = 200;
+          gain.gain.setValueAtTime(0.7, time);
+          gain.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
+          osc.connect(filter); filter.connect(gain); gain.connect(this.gainNode);
+          osc.start(time); osc.stop(time + 0.3);
+          this.oscillators.push(osc);
+        };
+
+        const scheduleSnare = (time) => {
+          const bufferSize = this.ctx.sampleRate * 0.12;
+          const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.2));
+          }
+          const noise = this.ctx.createBufferSource();
+          noise.buffer = buffer;
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'lowpass'; filter.frequency.value = 3000;
+          const gain = this.ctx.createGain();
+          gain.gain.setValueAtTime(0.35, time);
+          gain.gain.exponentialRampToValueAtTime(0.001, time + 0.12);
+          noise.connect(filter); filter.connect(gain); gain.connect(this.gainNode);
+          noise.start(time); noise.stop(time + 0.12);
+        };
+
+        const scheduleHihat = (time) => {
+          const bufferSize = this.ctx.sampleRate * 0.03;
+          const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.4));
+          const noise = this.ctx.createBufferSource();
+          noise.buffer = buffer;
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'bandpass'; filter.frequency.value = 6000; filter.Q.value = 1;
+          const gain = this.ctx.createGain();
+          gain.gain.setValueAtTime(0.15, time);
+          gain.gain.exponentialRampToValueAtTime(0.001, time + 0.03);
+          noise.connect(filter); filter.connect(gain); gain.connect(this.gainNode);
+          noise.start(time); noise.stop(time + 0.03);
+        };
+
+        const scheduleChord = (time, freqs) => {
+          for (const freq of freqs) {
+            const osc = this.ctx.createOscillator();
+            const filter = this.ctx.createBiquadFilter();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, time);
+            filter.type = 'lowpass'; filter.frequency.value = 1200;
+            gain.gain.setValueAtTime(0, time);
+            gain.gain.linearRampToValueAtTime(0.06, time + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + beat * 3.5);
+            osc.connect(filter); filter.connect(gain); gain.connect(this.gainNode);
+            osc.start(time); osc.stop(time + beat * 4);
+            this.oscillators.push(osc);
+          }
+        };
+
+        const scheduleVinyl = (time, dur) => {
+          const bufferSize = Math.floor(this.ctx.sampleRate * dur);
+          const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * 0.015;
+            if (Math.random() < 0.001) data[i] += (Math.random() - 0.5) * 0.3;
+          }
+          const noise = this.ctx.createBufferSource();
+          noise.buffer = buffer;
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'bandpass'; filter.frequency.value = 1000; filter.Q.value = 0.5;
+          const gain = this.ctx.createGain();
+          gain.gain.setValueAtTime(0.4, time);
+          noise.connect(filter); filter.connect(gain); gain.connect(this.gainNode);
+          noise.start(time); noise.stop(time + dur);
+        };
+
+        // jazz chords: Cmaj7, Dm7, Em7, Fmaj7
+        const chords = [
+          [261.63, 329.63, 392.00, 493.88],
+          [293.66, 349.23, 440.00, 523.25],
+          [329.63, 392.00, 493.88, 587.33],
+          [349.23, 440.00, 523.25, 659.25],
+        ];
+
+        // vinyl crackle for entire duration
+        scheduleVinyl(now, duration);
+
+        const swing = beat * 0.08;
+        const steps = Math.floor(duration / beat);
+        for (let i = 0; i < steps; i++) {
+          const time = now + i * beat;
+          const swung = (i % 2 === 1) ? time + swing : time;
+          if (i % 4 === 0) scheduleKick(time);
+          if (i % 4 === 2) scheduleSnare(time);
+          scheduleHihat(swung);
+          if (i % 8 === 0) scheduleChord(time, chords[Math.floor(i / 8) % chords.length]);
+        }
+
+        this._loopTimeout = setTimeout(() => {
+          if (this.isPlaying && this.currentTrack === 0) this._lofi(beat);
+        }, duration * 1000);
+      }
+
+      // Glitch: random micro-cuts, pitch-shifted bursts, stutter patterns
+      _glitch(beat) {
+        const now = this.ctx.currentTime;
+        const duration = 12;
+        const step = beat / 4; // 16th notes
+
+        const scheduleGlitchHit = (time) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          const types = ['square', 'sawtooth', 'triangle'];
+          osc.type = types[Math.floor(Math.random() * 3)];
+          const freq = 80 + Math.random() * 2000;
+          osc.frequency.setValueAtTime(freq, time);
+          osc.frequency.exponentialRampToValueAtTime(freq * (0.5 + Math.random()), time + step * 0.8);
+          const vol = 0.1 + Math.random() * 0.2;
+          gain.gain.setValueAtTime(vol, time);
+          gain.gain.exponentialRampToValueAtTime(0.001, time + step * (0.3 + Math.random() * 0.5));
+          osc.connect(gain); gain.connect(this.gainNode);
+          osc.start(time); osc.stop(time + step);
+          this.oscillators.push(osc);
+        };
+
+        const scheduleNoiseBurst = (time) => {
+          const len = step * (0.2 + Math.random() * 0.6);
+          const bufferSize = Math.floor(this.ctx.sampleRate * len);
+          const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.5));
+          const noise = this.ctx.createBufferSource();
+          noise.buffer = buffer;
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = Math.random() > 0.5 ? 'highpass' : 'bandpass';
+          filter.frequency.value = 500 + Math.random() * 8000;
+          filter.Q.value = 1 + Math.random() * 10;
+          const gain = this.ctx.createGain();
+          gain.gain.setValueAtTime(0.2 + Math.random() * 0.15, time);
+          gain.gain.exponentialRampToValueAtTime(0.001, time + len);
+          noise.connect(filter); filter.connect(gain); gain.connect(this.gainNode);
+          noise.start(time); noise.stop(time + len);
+        };
+
+        const scheduleKick = (time) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(180, time);
+          osc.frequency.exponentialRampToValueAtTime(30, time + 0.06);
+          gain.gain.setValueAtTime(0.8, time);
+          gain.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
+          osc.connect(gain); gain.connect(this.gainNode);
+          osc.start(time); osc.stop(time + 0.15);
+          this.oscillators.push(osc);
+        };
+
+        const scheduleStutter = (time, freq) => {
+          const repeats = 2 + Math.floor(Math.random() * 4);
+          const gap = step / repeats;
+          for (let r = 0; r < repeats; r++) {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(freq, time + r * gap);
+            gain.gain.setValueAtTime(0.2, time + r * gap);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + r * gap + gap * 0.7);
+            osc.connect(gain); gain.connect(this.gainNode);
+            osc.start(time + r * gap); osc.stop(time + r * gap + gap * 0.7);
+            this.oscillators.push(osc);
+          }
+        };
+
+        const totalSteps = Math.floor(duration / step);
+        for (let i = 0; i < totalSteps; i++) {
+          const time = now + i * step;
+          const r = Math.random();
+          if (i % 16 === 0) scheduleKick(time);
+          else if (i % 16 === 8) scheduleKick(time);
+          if (r < 0.3) scheduleGlitchHit(time);
+          else if (r < 0.5) scheduleNoiseBurst(time);
+          else if (r < 0.6) scheduleStutter(time, 200 + Math.random() * 800);
+        }
+
+        this._loopTimeout = setTimeout(() => {
+          if (this.isPlaying && this.currentTrack === 1) this._glitch(beat);
+        }, duration * 1000);
+      }
+
+      // Psytrance: fast 16th acid bassline, steady kick, layered rising arps
+      _psytrance(beat) {
+        const now = this.ctx.currentTime;
+        const duration = 16;
+        const sixteenth = beat / 4;
+
+        const scheduleKick = (time) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(150, time);
+          osc.frequency.exponentialRampToValueAtTime(40, time + 0.05);
+          gain.gain.setValueAtTime(0.85, time);
+          gain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
+          osc.connect(gain); gain.connect(this.gainNode);
+          osc.start(time); osc.stop(time + 0.2);
+          this.oscillators.push(osc);
+        };
+
+        const scheduleBassline = (time, freq) => {
+          const osc = this.ctx.createOscillator();
+          const filter = this.ctx.createBiquadFilter();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(freq, time);
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(300, time);
+          filter.frequency.exponentialRampToValueAtTime(4000, time + sixteenth * 0.2);
+          filter.frequency.exponentialRampToValueAtTime(300, time + sixteenth * 0.8);
+          filter.Q.value = 12;
+          gain.gain.setValueAtTime(0.25, time);
+          gain.gain.linearRampToValueAtTime(0, time + sixteenth * 0.85);
+          osc.connect(filter); filter.connect(gain); gain.connect(this.gainNode);
+          osc.start(time); osc.stop(time + sixteenth);
+          this.oscillators.push(osc);
+        };
+
+        const scheduleArp = (time, freq) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, time);
+          gain.gain.setValueAtTime(0, time);
+          gain.gain.linearRampToValueAtTime(0.08, time + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, time + beat);
+          osc.connect(gain); gain.connect(this.gainNode);
+          osc.start(time); osc.stop(time + beat);
+          this.oscillators.push(osc);
+        };
+
+        const bassPattern = [55, 55, 73.42, 55, 55, 82.41, 55, 61.74, 55, 55, 73.42, 55, 82.41, 55, 61.74, 55];
+        const arpNotes = [440, 523.25, 587.33, 659.25, 783.99, 659.25, 587.33, 523.25];
+        const steps = Math.floor(duration / sixteenth);
+
+        for (let i = 0; i < steps; i++) {
+          const time = now + i * sixteenth;
+          if (i % 4 === 0) scheduleKick(time);
+          scheduleBassline(time, bassPattern[i % 16]);
+          if (i % 8 === 0) scheduleArp(time, arpNotes[Math.floor(i / 8) % arpNotes.length]);
+        }
+
+        this._loopTimeout = setTimeout(() => {
+          if (this.isPlaying && this.currentTrack === 2) this._psytrance(beat);
+        }, duration * 1000);
+      }
+
+      // Dubstep: heavy sub bass wobble, half-time snare, aggressive kick
+      _dubstep(beat) {
+        const now = this.ctx.currentTime;
+        const duration = 16;
+        const halfBeat = beat / 2;
+
+        const scheduleKick = (time) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(180, time);
+          osc.frequency.exponentialRampToValueAtTime(25, time + 0.1);
+          gain.gain.setValueAtTime(1, time);
+          gain.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
+          osc.connect(gain); gain.connect(this.gainNode);
+          osc.start(time); osc.stop(time + 0.3);
+          this.oscillators.push(osc);
+        };
+
+        const scheduleSnare = (time) => {
+          const bufferSize = this.ctx.sampleRate * 0.15;
+          const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.25));
+          }
+          const noise = this.ctx.createBufferSource();
+          noise.buffer = buffer;
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'peaking'; filter.frequency.value = 200; filter.Q.value = 1; filter.gain.value = 8;
+          const gain = this.ctx.createGain();
+          gain.gain.setValueAtTime(0.7, time);
+          gain.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
+          noise.connect(filter); filter.connect(gain); gain.connect(this.gainNode);
+          noise.start(time); noise.stop(time + 0.15);
+          // layer a tone with it
+          const osc = this.ctx.createOscillator();
+          const g2 = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(180, time);
+          g2.gain.setValueAtTime(0.3, time);
+          g2.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
+          osc.connect(g2); g2.connect(this.gainNode);
+          osc.start(time); osc.stop(time + 0.08);
+          this.oscillators.push(osc);
+        };
+
+        const scheduleWobble = (time, dur) => {
+          const osc = this.ctx.createOscillator();
+          const filter = this.ctx.createBiquadFilter();
+          const lfo = this.ctx.createOscillator();
+          const lfoGain = this.ctx.createGain();
+          const gain = this.ctx.createGain();
+
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(55, time);
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(400, time);
+          filter.Q.value = 10;
+
+          // LFO modulates filter
+          lfo.type = 'sine';
+          const wobbleRate = [4, 8, 2, 6][Math.floor(Math.random() * 4)];
+          lfo.frequency.setValueAtTime(wobbleRate, time);
+          lfoGain.gain.setValueAtTime(1500, time);
+          lfo.connect(lfoGain);
+          lfoGain.connect(filter.frequency);
+
+          gain.gain.setValueAtTime(0.35, time);
+          gain.gain.linearRampToValueAtTime(0, time + dur);
+
+          osc.connect(filter); filter.connect(gain); gain.connect(this.gainNode);
+          osc.start(time); osc.stop(time + dur);
+          lfo.start(time); lfo.stop(time + dur);
+          this.oscillators.push(osc, lfo);
+        };
+
+        const steps = Math.floor(duration / beat);
+        for (let i = 0; i < steps; i++) {
+          const time = now + i * beat;
+          // half-time: kick on 1, snare on 3
+          if (i % 8 === 0) scheduleKick(time);
+          if (i % 8 === 4) scheduleSnare(time);
+          // wobble bass every 2 beats
+          if (i % 2 === 0) scheduleWobble(time, beat * 2);
+        }
+
+        this._loopTimeout = setTimeout(() => {
+          if (this.isPlaying && this.currentTrack === 3) this._dubstep(beat);
+        }, duration * 1000);
+      }
+
+      async loadFile(file) {
+        this.stop();
+        const arrayBuffer = await file.arrayBuffer();
+        const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+        this.source = this.ctx.createBufferSource();
+        this.source.buffer = audioBuffer;
+        this.source.loop = true;
+        this.source.connect(this.gainNode);
+        this.source.start();
+        this.isPlaying = true;
+        this.currentTrack = -1;
+      }
+
+      stop() {
+        if (this._loopTimeout) { clearTimeout(this._loopTimeout); this._loopTimeout = null; }
+        this.oscillators.forEach(osc => { try { osc.stop(); } catch (e) {} });
+        this.oscillators = [];
+        if (this.source) { try { this.source.stop(); } catch (e) {} this.source = null; }
+        this.isPlaying = false;
+      }
+
+      toggle() {
+        if (this.isPlaying) this.stop();
+        else this.playBuiltinTrack(this.currentTrack >= 0 ? this.currentTrack : 0);
+      }
+    }
+
+    // ============================================================
+    // PERLIN NOISE (simplex 2D)
+    // ============================================================
+    class Noise {
+      constructor() {
+        this.perm = new Uint8Array(512);
+        const p = new Uint8Array(256);
+        for (let i = 0; i < 256; i++) p[i] = i;
+        for (let i = 255; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [p[i], p[j]] = [p[j], p[i]];
+        }
+        for (let i = 0; i < 512; i++) this.perm[i] = p[i & 255];
+      }
+
+      _grad(hash, x, y) {
+        const h = hash & 7;
+        const u = h < 4 ? x : y;
+        const v = h < 4 ? y : x;
+        return ((h & 1) ? -u : u) + ((h & 2) ? -v : v);
+      }
+
+      get(x, y) {
+        const X = Math.floor(x) & 255;
+        const Y = Math.floor(y) & 255;
+        x -= Math.floor(x);
+        y -= Math.floor(y);
+        const u = x * x * x * (x * (x * 6 - 15) + 10);
+        const v = y * y * y * (y * (y * 6 - 15) + 10);
+        const a = this.perm[X] + Y;
+        const b = this.perm[X + 1] + Y;
+        return 0.5 + 0.5 * (
+          this._lerp(
+            this._lerp(this._grad(this.perm[a], x, y), this._grad(this.perm[b], x - 1, y), u),
+            this._lerp(this._grad(this.perm[a + 1], x, y - 1), this._grad(this.perm[b + 1], x - 1, y - 1), u),
+            v
+          )
+        );
+      }
+
+      _lerp(a, b, t) { return a + t * (b - a); }
+    }
+
+    const noise = new Noise();
+
+    // ============================================================
+    // PARTICLE
+    // ============================================================
+    class Particle {
+      constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.targetX = x;
+        this.targetY = y;
+        this.vx = 0;
+        this.vy = 0;
+        this.size = 2;
+        this.baseSize = 2;
+        this.color = color;
+        this.alpha = 1;
+        this.life = 1;
+      }
+
+      reset(x, y, color) {
+        this.targetX = x;
+        this.targetY = y;
+        this.color = color;
+        this.life = 1;
+      }
+    }
+
+    // ============================================================
+    // COLOR PALETTES
+    // ============================================================
+    const PALETTES = {
+      cyber: { bg1: '#0a0020', bg2: '#001a1a', accent: '#0ff', hueBase: 180, hueRange: 160 },
+      aurora: { bg1: '#0a0028', bg2: '#001020', accent: '#7df', hueBase: 200, hueRange: 80 },
+      cosmic: { bg1: '#1a0a00', bg2: '#200010', accent: '#f80', hueBase: 20, hueRange: 60 },
+      ocean: { bg1: '#001a20', bg2: '#000a18', accent: '#0fa', hueBase: 160, hueRange: 60 },
+      nebula: { bg1: '#100020', bg2: '#001a20', accent: '#a0f', hueBase: 260, hueRange: 120 },
+      terminal: { bg1: '#050a05', bg2: '#000800', accent: '#0f0', hueBase: 120, hueRange: 40 },
+    };
+
+    const MODE_PALETTES = ['cyber', 'aurora', 'cosmic', 'ocean', 'nebula', 'terminal'];
+    const MODE_NAMES = ['Text', 'Ring', 'Galaxy', 'Wave', 'Fluid', 'Code'];
+
+    // ============================================================
+    // BACKGROUND RENDERER
+    // ============================================================
+    class Background {
+      constructor(canvas, ctx) {
+        this.canvas = canvas;
+        this.ctx = ctx;
+        this.pulses = [];
+        this.time = 0;
+      }
+
+      addPulse(intensity) {
+        this.pulses.push({ radius: 0, alpha: intensity * 0.3, speed: 3 + intensity * 5 });
+        if (this.pulses.length > 5) this.pulses.shift();
+      }
+
+      draw(palette, bands) {
+        const { canvas, ctx } = this;
+        const w = canvas.width, h = canvas.height;
+        this.time += 0.005;
+
+        const p = PALETTES[palette];
+        const grad = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.7);
+        const shift = Math.sin(this.time) * 0.1;
+        grad.addColorStop(0, p.bg2);
+        grad.addColorStop(0.5 + shift, p.bg1);
+        grad.addColorStop(1, '#000');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+
+        // radial pulses
+        for (let i = this.pulses.length - 1; i >= 0; i--) {
+          const pulse = this.pulses[i];
+          pulse.radius += pulse.speed;
+          pulse.alpha *= 0.97;
+          if (pulse.alpha < 0.01) { this.pulses.splice(i, 1); continue; }
+          ctx.beginPath();
+          ctx.arc(w / 2, h / 2, pulse.radius, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(${this._hexToRgb(p.accent)}, ${pulse.alpha})`;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+
+        if (bands.low > 0.5) this.addPulse(bands.low);
+      }
+
+      _hexToRgb(hex) {
+        const r = parseInt(hex.slice(1, 3) || hex.slice(1, 2).repeat(2), 16) || 0;
+        const g = parseInt(hex.slice(3, 5) || hex.slice(2, 3).repeat(2), 16) || 0;
+        const b = parseInt(hex.slice(5, 7) || hex.slice(3, 4).repeat(2), 16) || 0;
+        // handle shorthand like #0ff
+        if (hex.length === 4) {
+          return `${parseInt(hex[1]+hex[1],16)}, ${parseInt(hex[2]+hex[2],16)}, ${parseInt(hex[3]+hex[3],16)}`;
+        }
+        return `${r}, ${g}, ${b}`;
+      }
+    }
+
+    // ============================================================
+    // CONNECTION RENDERER
+    // ============================================================
+    class Connections {
+      constructor(ctx) {
+        this.ctx = ctx;
+        this.pulse = 0;
+      }
+
+      draw(particles, maxDist, palette, bands) {
+        const ctx = this.ctx;
+        const p = PALETTES[palette];
+        this.pulse += 0.05;
+        const pulseAlpha = 0.3 + Math.sin(this.pulse) * 0.15 + bands.mid * 0.4;
+        const count = Math.min(particles.length, 500);
+
+        for (let i = 0; i < count; i++) {
+          const a = particles[i];
+          for (let j = i + 1; j < count; j++) {
+            const b = particles[j];
+            const dx = a.x - b.x;
+            const dy = a.y - b.y;
+            const dist = dx * dx + dy * dy;
+            if (dist < maxDist * maxDist) {
+              const alpha = (1 - Math.sqrt(dist) / maxDist) * pulseAlpha;
+              ctx.beginPath();
+              ctx.moveTo(a.x, a.y);
+              ctx.lineTo(b.x, b.y);
+              ctx.strokeStyle = `hsla(${p.hueBase + bands.low * 60}, 100%, 60%, ${alpha})`;
+              ctx.lineWidth = 0.5 + bands.high;
+              ctx.stroke();
+            }
+          }
+        }
+      }
+    }
+
+    // ============================================================
+    // VISUALIZER MODES
+    // ============================================================
+
+    // Mode 0: Particle Text
+    class TextMode {
+      constructor(canvas, ctx) {
+        this.canvas = canvas;
+        this.ctx = ctx;
+        this.particles = [];
+        this.text = 'MUSIC';
+        this.offscreen = document.createElement('canvas');
+        this.offCtx = this.offscreen.getContext('2d');
+        this.connections = new Connections(ctx);
+      }
+
+      setText(text) {
+        this.text = (text.trim() || 'MUSIC').toUpperCase();
+        this.generate();
+      }
+
+      generate() {
+        const { canvas, offscreen, offCtx, text } = this;
+        const w = canvas.width, h = canvas.height;
+        offscreen.width = w; offscreen.height = h;
+        offCtx.clearRect(0, 0, w, h);
+
+        let fontSize = Math.min(h * 0.35, 160);
+        offCtx.font = `bold ${fontSize}px "Courier New", monospace`;
+        offCtx.textAlign = 'center';
+        offCtx.textBaseline = 'middle';
+        while (offCtx.measureText(text).width > w * 0.8 && fontSize > 30) {
+          fontSize -= 4;
+          offCtx.font = `bold ${fontSize}px "Courier New", monospace`;
+        }
+        offCtx.fillStyle = '#fff';
+        offCtx.fillText(text, w / 2, h / 2);
+
+        const imageData = offCtx.getImageData(0, 0, w, h).data;
+        const gap = 4;
+        const points = [];
+        for (let y = 0; y < h; y += gap) {
+          for (let x = 0; x < w; x += gap) {
+            if (imageData[(y * w + x) * 4 + 3] > 128) points.push({ x, y });
+          }
+        }
+
+        const max = 3000;
+        const step = points.length > max ? Math.ceil(points.length / max) : 1;
+        const palette = PALETTES.cyber;
+
+        this.particles = [];
+        for (let i = 0; i < points.length; i += step) {
+          const { x, y } = points[i];
+          const hue = palette.hueBase + (x / w) * palette.hueRange;
+          const color = `hsl(${hue}, 100%, 60%)`;
+          const p = new Particle(x + (Math.random() - 0.5) * 100, y + (Math.random() - 0.5) * 100, color);
+          p.targetX = x; p.targetY = y;
+          this.particles.push(p);
+        }
+      }
+
+      update(bands) {
+        for (const p of this.particles) {
+          const dx = p.targetX - p.x;
+          const dy = p.targetY - p.y;
+          const spring = 0.03 + bands.mid * 0.03;
+          p.vx += dx * spring;
+          p.vy += dy * spring;
+          if (bands.low > 0.4) {
+            const angle = Math.random() * Math.PI * 2;
+            const force = (bands.low - 0.4) * 12;
+            p.vx += Math.cos(angle) * force;
+            p.vy += Math.sin(angle) * force;
+          }
+          p.vx *= 0.91; p.vy *= 0.91;
+          p.x += p.vx; p.y += p.vy;
+          p.size = p.baseSize + bands.mid * 3;
+          p.alpha = 0.6 + bands.high * 0.4;
+        }
+      }
+
+      draw(bands) {
+        const ctx = this.ctx;
+        const glowIntensity = 5 + bands.high * 20;
+        ctx.shadowBlur = glowIntensity;
+        ctx.shadowColor = `hsl(${180 + bands.low * 100}, 100%, 50%)`;
+        for (const p of this.particles) {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = p.alpha;
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+        this.connections.draw(this.particles, 50 + bands.low * 30, 'cyber', bands);
+      }
+
+      resize() { this.generate(); }
+      getParticles() { return this.particles; }
+    }
+
+    // Mode 1: Spectrum Ring
+    class RingMode {
+      constructor(canvas, ctx) {
+        this.canvas = canvas;
+        this.ctx = ctx;
+        this.particles = [];
+        this.rotation = 0;
+      }
+
+      generate() {
+        const { canvas } = this;
+        const cx = canvas.width / 2, cy = canvas.height / 2;
+        const radius = Math.min(cx, cy) * 0.35;
+        const count = 180;
+        this.particles = [];
+        for (let i = 0; i < count; i++) {
+          const angle = (i / count) * Math.PI * 2;
+          const x = cx + Math.cos(angle) * radius;
+          const y = cy + Math.sin(angle) * radius;
+          const hue = 200 + (i / count) * 80;
+          const p = new Particle(x, y, `hsl(${hue}, 90%, 60%)`);
+          p.targetX = x; p.targetY = y;
+          p.angle = angle;
+          p.baseRadius = radius;
+          this.particles.push(p);
+        }
+      }
+
+      update(bands) {
+        const cx = this.canvas.width / 2, cy = this.canvas.height / 2;
+        this.rotation += 0.002 + bands.mid * 0.01;
+        const rawLen = bands.raw.length;
+
+        for (let i = 0; i < this.particles.length; i++) {
+          const p = this.particles[i];
+          const freqIdx = Math.floor((i / this.particles.length) * rawLen);
+          const freqVal = (bands.raw[freqIdx] || 0) / 255;
+          const dynamicRadius = p.baseRadius + freqVal * 120;
+          const angle = p.angle + this.rotation;
+          p.targetX = cx + Math.cos(angle) * dynamicRadius;
+          p.targetY = cy + Math.sin(angle) * dynamicRadius;
+          p.x += (p.targetX - p.x) * 0.15;
+          p.y += (p.targetY - p.y) * 0.15;
+          p.size = 2 + freqVal * 5;
+          p.alpha = 0.5 + freqVal * 0.5;
+          const hue = 200 + (i / this.particles.length) * 80 + bands.low * 40;
+          p.color = `hsl(${hue}, 90%, ${50 + freqVal * 30}%)`;
+        }
+      }
+
+      draw(bands) {
+        const ctx = this.ctx;
+        const cx = this.canvas.width / 2, cy = this.canvas.height / 2;
+
+        // inner glow
+        const innerGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, this.particles[0].baseRadius * 0.8);
+        innerGrad.addColorStop(0, `rgba(100, 200, 255, ${bands.mid * 0.1})`);
+        innerGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = innerGrad;
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        ctx.shadowBlur = 8 + bands.high * 15;
+        ctx.shadowColor = `hsl(220, 100%, 60%)`;
+
+        // draw bars connecting center to particles
+        for (let i = 0; i < this.particles.length; i += 2) {
+          const p = this.particles[i];
+          const angle = p.angle + this.rotation;
+          const innerR = p.baseRadius * 0.9;
+          const ix = cx + Math.cos(angle) * innerR;
+          const iy = cy + Math.sin(angle) * innerR;
+          ctx.beginPath();
+          ctx.moveTo(ix, iy);
+          ctx.lineTo(p.x, p.y);
+          ctx.strokeStyle = p.color;
+          ctx.globalAlpha = p.alpha * 0.6;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+
+        for (const p of this.particles) {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = p.alpha;
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+      }
+
+      resize() { this.generate(); }
+      getParticles() { return this.particles; }
+    }
+
+    // Mode 2: Galaxy Vortex
+    class GalaxyMode {
+      constructor(canvas, ctx) {
+        this.canvas = canvas;
+        this.ctx = ctx;
+        this.particles = [];
+        this.connections = new Connections(ctx);
+        this.time = 0;
+      }
+
+      generate() {
+        const cx = this.canvas.width / 2, cy = this.canvas.height / 2;
+        const count = 1500;
+        this.particles = [];
+        for (let i = 0; i < count; i++) {
+          const arm = i % 3;
+          const dist = Math.random() * Math.min(cx, cy) * 0.7;
+          const angle = (arm / 3) * Math.PI * 2 + dist * 0.015 + Math.random() * 0.3;
+          const x = cx + Math.cos(angle) * dist;
+          const y = cy + Math.sin(angle) * dist;
+          const hue = 20 + dist * 0.3 + arm * 20;
+          const p = new Particle(x, y, `hsl(${hue}, 90%, 60%)`);
+          p.dist = dist;
+          p.armAngle = angle;
+          p.arm = arm;
+          p.orbitSpeed = 0.001 + (1 - dist / (Math.min(cx, cy) * 0.7)) * 0.003;
+          this.particles.push(p);
+        }
+      }
+
+      update(bands) {
+        const cx = this.canvas.width / 2, cy = this.canvas.height / 2;
+        this.time += 0.01 + bands.mid * 0.02;
+
+        for (const p of this.particles) {
+          p.armAngle += p.orbitSpeed * (1 + bands.low * 2);
+          let dist = p.dist;
+
+          if (bands.low > 0.5) {
+            dist += (bands.low - 0.5) * 40 * Math.sin(this.time * 3 + p.arm);
+          }
+
+          p.targetX = cx + Math.cos(p.armAngle) * dist;
+          p.targetY = cy + Math.sin(p.armAngle) * dist;
+          p.x += (p.targetX - p.x) * 0.08;
+          p.y += (p.targetY - p.y) * 0.08;
+          p.size = 1.5 + bands.mid * 2 + (1 - p.dist / (Math.min(cx, cy) * 0.7)) * 2;
+          p.alpha = 0.4 + bands.high * 0.4 + (1 - p.dist / (Math.min(cx, cy) * 0.7)) * 0.3;
+          const hue = 20 + p.dist * 0.3 + p.arm * 20 + bands.low * 30;
+          p.color = `hsl(${hue}, 85%, ${50 + bands.mid * 20}%)`;
+        }
+      }
+
+      draw(bands) {
+        const ctx = this.ctx;
+        const cx = this.canvas.width / 2, cy = this.canvas.height / 2;
+
+        // core glow
+        const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 60);
+        coreGrad.addColorStop(0, `rgba(255, 150, 50, ${0.3 + bands.low * 0.3})`);
+        coreGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = coreGrad;
+        ctx.fillRect(cx - 80, cy - 80, 160, 160);
+
+        ctx.shadowBlur = 6 + bands.high * 10;
+        ctx.shadowColor = `hsl(30, 100%, 50%)`;
+
+        for (const p of this.particles) {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = p.alpha;
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+
+        this.connections.draw(this.particles.slice(0, 400), 40 + bands.low * 20, 'cosmic', bands);
+      }
+
+      resize() { this.generate(); }
+      getParticles() { return this.particles; }
+    }
+
+    // Mode 3: Waveform Mountains
+    class WaveMode {
+      constructor(canvas, ctx) {
+        this.canvas = canvas;
+        this.ctx = ctx;
+        this.particles = [];
+        this.time = 0;
+      }
+
+      generate() {
+        const w = this.canvas.width, h = this.canvas.height;
+        const layers = 6;
+        const pointsPerLayer = 80;
+        this.particles = [];
+        for (let l = 0; l < layers; l++) {
+          for (let i = 0; i < pointsPerLayer; i++) {
+            const x = (i / (pointsPerLayer - 1)) * w;
+            const y = h * (0.35 + l * 0.1);
+            const hue = 160 + l * 15;
+            const p = new Particle(x, y, `hsl(${hue}, 80%, ${60 - l * 5}%)`);
+            p.layer = l;
+            p.idx = i;
+            p.baseY = y;
+            this.particles.push(p);
+          }
+        }
+      }
+
+      update(bands) {
+        const w = this.canvas.width;
+        this.time += 0.02 + bands.mid * 0.03;
+
+        for (const p of this.particles) {
+          const freqIdx = Math.floor((p.idx / 80) * (bands.raw.length || 1));
+          const freqVal = (bands.raw[freqIdx] || 0) / 255;
+          const wave = Math.sin(p.idx * 0.1 + this.time + p.layer * 0.8) * 20;
+          const audioWave = freqVal * (80 - p.layer * 10);
+          p.y = p.baseY - wave - audioWave;
+          p.size = 2 + freqVal * 3;
+          p.alpha = 0.4 + freqVal * 0.5 + (1 - p.layer / 6) * 0.2;
+          const hue = 160 + p.layer * 15 + bands.low * 30;
+          p.color = `hsl(${hue}, 80%, ${50 + freqVal * 30}%)`;
+        }
+      }
+
+      draw(bands) {
+        const ctx = this.ctx;
+        const w = this.canvas.width;
+        const layers = 6;
+        const ppl = 80;
+
+        for (let l = layers - 1; l >= 0; l--) {
+          const start = l * ppl;
+          const layerParticles = this.particles.slice(start, start + ppl);
+
+          // fill area
+          ctx.beginPath();
+          ctx.moveTo(0, this.canvas.height);
+          for (const p of layerParticles) {
+            ctx.lineTo(p.x, p.y);
+          }
+          ctx.lineTo(w, this.canvas.height);
+          ctx.closePath();
+          const alpha = 0.08 + (1 - l / layers) * 0.12 + bands.mid * 0.05;
+          const hue = 160 + l * 15 + bands.low * 30;
+          ctx.fillStyle = `hsla(${hue}, 70%, 40%, ${alpha})`;
+          ctx.fill();
+
+          // draw points
+          ctx.shadowBlur = 4 + bands.high * 8;
+          ctx.shadowColor = `hsl(${hue}, 100%, 60%)`;
+          for (const p of layerParticles) {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = p.alpha;
+            ctx.fill();
+          }
+
+          // draw line connecting points
+          ctx.beginPath();
+          ctx.moveTo(layerParticles[0].x, layerParticles[0].y);
+          for (let i = 1; i < layerParticles.length; i++) {
+            ctx.lineTo(layerParticles[i].x, layerParticles[i].y);
+          }
+          ctx.strokeStyle = `hsla(${hue}, 90%, 60%, ${0.3 + bands.mid * 0.3})`;
+          ctx.lineWidth = 1;
+          ctx.globalAlpha = 0.6;
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+      }
+
+      resize() { this.generate(); }
+      getParticles() { return this.particles; }
+    }
+
+    // Mode 4: Fluid Field
+    class FluidMode {
+      constructor(canvas, ctx) {
+        this.canvas = canvas;
+        this.ctx = ctx;
+        this.particles = [];
+        this.connections = new Connections(ctx);
+        this.time = 0;
+      }
+
+      generate() {
+        const w = this.canvas.width, h = this.canvas.height;
+        const count = 2000;
+        this.particles = [];
+        for (let i = 0; i < count; i++) {
+          const x = Math.random() * w;
+          const y = Math.random() * h;
+          const hue = 260 + Math.random() * 120;
+          const p = new Particle(x, y, `hsl(${hue}, 80%, 60%)`);
+          p.originX = x;
+          p.originY = y;
+          this.particles.push(p);
+        }
+      }
+
+      update(bands) {
+        const w = this.canvas.width, h = this.canvas.height;
+        this.time += 0.003 + bands.mid * 0.005;
+
+        for (const p of this.particles) {
+          const nx = p.x / 300;
+          const ny = p.y / 300;
+          const n = noise.get(nx + this.time, ny + this.time * 0.7);
+          const angle = n * Math.PI * 4;
+          const speed = 1 + bands.low * 3 + bands.mid * 2;
+
+          p.vx += Math.cos(angle) * speed * 0.3;
+          p.vy += Math.sin(angle) * speed * 0.3;
+          p.vx *= 0.95;
+          p.vy *= 0.95;
+          p.x += p.vx;
+          p.y += p.vy;
+
+          // wrap around
+          if (p.x < 0) p.x = w;
+          if (p.x > w) p.x = 0;
+          if (p.y < 0) p.y = h;
+          if (p.y > h) p.y = 0;
+
+          p.size = 1.5 + bands.mid * 2;
+          p.alpha = 0.3 + bands.high * 0.4 + n * 0.3;
+          const hue = 260 + n * 120 + bands.low * 40;
+          p.color = `hsl(${hue}, 80%, ${50 + bands.mid * 20}%)`;
+        }
+      }
+
+      draw(bands) {
+        const ctx = this.ctx;
+        ctx.shadowBlur = 4 + bands.high * 12;
+        ctx.shadowColor = `hsl(280, 100%, 50%)`;
+
+        for (const p of this.particles) {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = p.alpha;
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+
+        this.connections.draw(this.particles.slice(0, 300), 35 + bands.low * 15, 'nebula', bands);
+      }
+
+      resize() { this.generate(); }
+      getParticles() { return this.particles; }
+    }
+
+    // Mode 5: Code (Aphex Twin style)
+    class CodeMode {
+      constructor(canvas, ctx) {
+        this.canvas = canvas;
+        this.ctx = ctx;
+        this.particles = [];
+        this.grid = [];
+        this.cols = 0;
+        this.rows = 0;
+        this.cellW = 14;
+        this.cellH = 18;
+        this.time = 0;
+        this.codeSnippets = [
+          'fn main() { let x = 42; }',
+          'if (freq > 0.5) { explode(); }',
+          'for i in 0..n { pulse(i); }',
+          'const signal = fft(wave);',
+          'while (alive) { listen(); }',
+          'return chaos ^ order;',
+          '#include <reality.h>',
+          'yield* oscillate(hz);',
+          'async fn decode(bits) {}',
+          'match beat { 1 => kick() }',
+          'let entropy = rand() * pi;',
+          '0xDEADBEEF 0xCAFEBABE',
+          'mov eax, [ebx+0x1F]',
+          'jmp 0x00FF :: nop',
+          'push rbp; sub rsp, 0x20',
+          'λx.λy.x(y(x))',
+          '∂f/∂t = ∇²f + src',
+          'dp[i] = max(dp[i-1], v)',
+          'node.next = node.prev;',
+          'emit(photon, θ, φ);',
+          'sync.WaitGroup.Done()',
+          'Observable.interval(16)',
+          'gl_FragColor = vec4(r,g,b,a)',
+          'kernel<<<grid,block>>>(d)',
+          'SELECT * FROM void;',
+        ];
+        this.flatText = '';
+      }
+
+      generate() {
+        const w = this.canvas.width, h = this.canvas.height;
+        this.cols = Math.floor(w / this.cellW);
+        this.rows = Math.floor(h / this.cellH);
+
+        // build a screen of code text
+        this.flatText = '';
+        while (this.flatText.length < this.cols * this.rows) {
+          const snippet = this.codeSnippets[Math.floor(Math.random() * this.codeSnippets.length)];
+          this.flatText += snippet + '  ';
+        }
+
+        this.grid = [];
+        this.particles = [];
+        for (let row = 0; row < this.rows; row++) {
+          for (let col = 0; col < this.cols; col++) {
+            const idx = row * this.cols + col;
+            const ch = this.flatText[idx] || ' ';
+            const x = col * this.cellW + this.cellW / 2;
+            const y = row * this.cellH + this.cellH / 2;
+            const p = new Particle(x, y, '#0f0');
+            p.targetX = x;
+            p.targetY = y;
+            p.char = ch;
+            p.row = row;
+            p.col = col;
+            p.offsetX = 0;
+            p.offsetY = 0;
+            p.glitch = 0;
+            p.brightness = 0.3;
+            this.grid.push(p);
+            this.particles.push(p);
+          }
+        }
+      }
+
+      update(bands) {
+        this.time += 0.02 + bands.mid * 0.03;
+        const rawLen = bands.raw.length;
+
+        for (const p of this.grid) {
+          const rowNorm = p.row / this.rows;
+          const colNorm = p.col / this.cols;
+
+          // low freq affects bottom rows (bass = bottom)
+          const lowInfluence = Math.max(0, 1 - Math.abs(rowNorm - 0.8) * 3) * bands.low;
+          // mid freq affects middle
+          const midInfluence = Math.max(0, 1 - Math.abs(rowNorm - 0.5) * 3) * bands.mid;
+          // high freq affects top
+          const highInfluence = Math.max(0, 1 - Math.abs(rowNorm - 0.2) * 3) * bands.high;
+
+          const totalInfluence = lowInfluence + midInfluence + highInfluence;
+
+          // position displacement
+          if (totalInfluence > 0.2) {
+            const freqIdx = Math.floor(colNorm * rawLen);
+            const freqVal = (bands.raw[freqIdx] || 0) / 255;
+            p.offsetX = (Math.sin(this.time * 3 + p.col * 0.5) * totalInfluence * 6) * freqVal;
+            p.offsetY = (Math.cos(this.time * 4 + p.row * 0.3) * totalInfluence * 4);
+          } else {
+            p.offsetX *= 0.9;
+            p.offsetY *= 0.9;
+          }
+
+          // glitch: random character swap on strong beats
+          if (bands.low > 0.6 && Math.random() < 0.03) {
+            p.glitch = 1;
+            const chars = '!@#$%^&*(){}[]<>/\\|~`01';
+            p.char = chars[Math.floor(Math.random() * chars.length)];
+          } else if (p.glitch > 0) {
+            p.glitch -= 0.05;
+            if (p.glitch <= 0) {
+              p.glitch = 0;
+              const idx = p.row * this.cols + p.col;
+              p.char = this.flatText[idx] || ' ';
+            }
+          }
+
+          // brightness based on frequency at this column
+          const freqIdx = Math.floor(colNorm * rawLen);
+          const freqVal = (bands.raw[freqIdx] || 0) / 255;
+          p.brightness = 0.15 + freqVal * 0.7 + totalInfluence * 0.3;
+
+          // color: green base, shifts to amber/white on high energy
+          const hue = 120 - totalInfluence * 80 - p.glitch * 40;
+          const sat = 80 - totalInfluence * 30;
+          const light = 30 + p.brightness * 40;
+          p.color = `hsl(${hue}, ${sat}%, ${light}%)`;
+          p.alpha = 0.2 + p.brightness * 0.8;
+          p.size = this.cellH * 0.7;
+        }
+      }
+
+      draw(bands) {
+        const ctx = this.ctx;
+        ctx.font = `${Math.floor(this.cellH * 0.7)}px "Courier New", "Fira Code", monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // scanline effect
+        for (let y = 0; y < this.canvas.height; y += 3) {
+          ctx.fillStyle = `rgba(0, 0, 0, ${0.03 + bands.mid * 0.02})`;
+          ctx.fillRect(0, y, this.canvas.width, 1);
+        }
+
+        // draw characters
+        for (const p of this.grid) {
+          if (p.char === ' ') continue;
+          ctx.globalAlpha = p.alpha;
+          ctx.fillStyle = p.color;
+
+          if (p.glitch > 0.5) {
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = '#ff0';
+          } else if (p.brightness > 0.6) {
+            ctx.shadowBlur = 4;
+            ctx.shadowColor = p.color;
+          } else {
+            ctx.shadowBlur = 0;
+          }
+
+          ctx.fillText(p.char, p.targetX + p.offsetX, p.targetY + p.offsetY);
+        }
+
+        // occasional full-line glitch flash
+        if (bands.low > 0.7 && Math.random() < 0.1) {
+          const row = Math.floor(Math.random() * this.rows);
+          const y = row * this.cellH;
+          ctx.fillStyle = `rgba(0, 255, 100, ${0.08 + bands.low * 0.1})`;
+          ctx.fillRect(0, y, this.canvas.width, this.cellH);
+        }
+
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+      }
+
+      resize() {
+        this.cellW = Math.max(10, Math.min(14, this.canvas.width / 100));
+        this.cellH = Math.max(14, Math.min(18, this.canvas.height / 50));
+        this.generate();
+      }
+      getParticles() { return this.particles.slice(0, 200); }
+    }
+
+    // ============================================================
+    // MOUSE TRAIL
+    // ============================================================
+    class MouseTrail {
+      constructor(canvas, ctx) {
+        this.canvas = canvas;
+        this.ctx = ctx;
+        this.particles = [];
+        this.mouseX = 0;
+        this.mouseY = 0;
+        this.isActive = false;
+        this.hue = 0;
+      }
+
+      emit(x, y, bands) {
+        this.mouseX = x;
+        this.mouseY = y;
+        const count = 3 + Math.floor((bands.low + bands.mid) * 5);
+        for (let i = 0; i < count; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 1 + Math.random() * 3 + bands.low * 4;
+          const hue = this.hue + Math.random() * 60;
+          this.particles.push({
+            x, y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: 2 + Math.random() * 3 + bands.mid * 3,
+            alpha: 1,
+            color: `hsl(${hue}, 100%, 65%)`,
+            life: 1,
+          });
+        }
+        if (this.particles.length > 500) {
+          this.particles.splice(0, this.particles.length - 500);
+        }
+      }
+
+      update(bands) {
+        this.hue += 0.5 + bands.mid * 2;
+        if (this.hue > 360) this.hue -= 360;
+
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+          const p = this.particles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vx *= 0.96;
+          p.vy *= 0.96;
+          p.vy += 0.1;
+          p.life -= 0.02;
+          p.alpha = p.life;
+          p.size *= 0.98;
+          if (p.life <= 0) this.particles.splice(i, 1);
+        }
+      }
+
+      draw(bands) {
+        const ctx = this.ctx;
+        if (this.particles.length === 0) return;
+
+        ctx.shadowBlur = 10 + bands.high * 15;
+        ctx.shadowColor = `hsl(${this.hue}, 100%, 60%)`;
+
+        for (const p of this.particles) {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = p.alpha;
+          ctx.fill();
+        }
+
+        // draw connections between nearby trail particles
+        const maxDist = 50;
+        const len = Math.min(this.particles.length, 100);
+        ctx.shadowBlur = 0;
+        for (let i = 0; i < len; i++) {
+          const a = this.particles[this.particles.length - 1 - i];
+          if (!a) break;
+          for (let j = i + 1; j < len; j++) {
+            const b = this.particles[this.particles.length - 1 - j];
+            if (!b) break;
+            const dx = a.x - b.x;
+            const dy = a.y - b.y;
+            const dist = dx * dx + dy * dy;
+            if (dist < maxDist * maxDist) {
+              const alpha = (1 - Math.sqrt(dist) / maxDist) * Math.min(a.alpha, b.alpha) * 0.5;
+              ctx.beginPath();
+              ctx.moveTo(a.x, a.y);
+              ctx.lineTo(b.x, b.y);
+              ctx.strokeStyle = `hsla(${this.hue}, 100%, 60%, ${alpha})`;
+              ctx.lineWidth = 0.8;
+              ctx.stroke();
+            }
+          }
+        }
+
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+      }
+    }
+
+    // ============================================================
+    // TRANSITION MANAGER
+    // ============================================================
+    class TransitionManager {
+      constructor(canvas, ctx) {
+        this.canvas = canvas;
+        this.ctx = ctx;
+        this.transitioning = false;
+        this.progress = 0;
+        this.debris = [];
+        this.phase = 'idle'; // idle | explode | regroup
+      }
+
+      start(fromParticles) {
+        this.transitioning = true;
+        this.progress = 0;
+        this.phase = 'explode';
+        const cx = this.canvas.width / 2, cy = this.canvas.height / 2;
+
+        // sample debris from old particles
+        const count = Math.min(fromParticles.length, 300);
+        const step = Math.max(1, Math.floor(fromParticles.length / count));
+        this.debris = [];
+        for (let i = 0; i < fromParticles.length; i += step) {
+          const p = fromParticles[i];
+          const angle = Math.atan2(p.y - cy, p.x - cx) + (Math.random() - 0.5) * 0.5;
+          const speed = 5 + Math.random() * 15;
+          this.debris.push({
+            x: p.x, y: p.y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: p.size || 2,
+            color: p.color,
+            alpha: 1,
+          });
+        }
+      }
+
+      update() {
+        if (!this.transitioning) return;
+        this.progress += 0.025;
+
+        if (this.phase === 'explode') {
+          for (const d of this.debris) {
+            d.x += d.vx;
+            d.y += d.vy;
+            d.vx *= 0.96;
+            d.vy *= 0.96;
+            d.alpha *= 0.95;
+            d.size *= 0.97;
+          }
+          if (this.progress > 0.5) {
+            this.phase = 'regroup';
+          }
+        } else if (this.phase === 'regroup') {
+          for (const d of this.debris) {
+            d.alpha *= 0.9;
+          }
+          if (this.progress >= 1) {
+            this.transitioning = false;
+            this.phase = 'idle';
+            this.debris = [];
+          }
+        }
+      }
+
+      draw() {
+        if (!this.transitioning) return;
+        const ctx = this.ctx;
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = '#fff';
+        for (const d of this.debris) {
+          if (d.alpha < 0.01) continue;
+          ctx.beginPath();
+          ctx.arc(d.x, d.y, d.size, 0, Math.PI * 2);
+          ctx.fillStyle = d.color;
+          ctx.globalAlpha = d.alpha;
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+      }
+
+      isDone() { return !this.transitioning; }
+    }
+
+    // ============================================================
+    // MAIN APP
+    // ============================================================
+    class App {
+      constructor() {
+        this.canvas = document.getElementById('canvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.audio = new AudioEngine();
+        this.background = new Background(this.canvas, this.ctx);
+        this.transition = new TransitionManager(this.canvas, this.ctx);
+        this.mouseTrail = new MouseTrail(this.canvas, this.ctx);
+        this.isStarted = false;
+        this.currentMode = 0;
+        this.modes = [];
+        this.touchStartX = 0;
+        this.touchStartY = 0;
+        this.mouseDown = false;
+        this.hintTimeout = null;
+
+        this.resize();
+        this.initModes();
+        this.bindEvents();
+      }
+
+      initModes() {
+        this.modes = [
+          new TextMode(this.canvas, this.ctx),
+          new RingMode(this.canvas, this.ctx),
+          new GalaxyMode(this.canvas, this.ctx),
+          new WaveMode(this.canvas, this.ctx),
+          new FluidMode(this.canvas, this.ctx),
+          new CodeMode(this.canvas, this.ctx),
+        ];
+        for (const m of this.modes) m.generate();
+      }
+
+      start() {
+        if (this.isStarted) return;
+        this.isStarted = true;
+        this.audio.init();
+        document.getElementById('overlay').classList.add('hidden');
+        this.audio.playBuiltinTrack(0);
+        this.updatePlayBtn();
+        this.showModeHint();
+        this.animate();
+      }
+
+      switchMode(newMode) {
+        if (newMode === this.currentMode || this.transition.transitioning) return;
+        const oldParticles = this.modes[this.currentMode].getParticles();
+        this.transition.start(oldParticles);
+        this.currentMode = newMode;
+        this.modes[newMode].generate();
+        this.updateModeButtons();
+        this.showModeHint();
+      }
+
+      nextMode() { this.switchMode((this.currentMode + 1) % this.modes.length); }
+      prevMode() { this.switchMode((this.currentMode - 1 + this.modes.length) % this.modes.length); }
+
+      showModeHint() {
+        const el = document.getElementById('modeHint');
+        el.textContent = MODE_NAMES[this.currentMode];
+        el.classList.remove('fade');
+        clearTimeout(this.hintTimeout);
+        this.hintTimeout = setTimeout(() => el.classList.add('fade'), 2000);
+      }
+
+      animate() {
+        const bands = this.audio.getFrequencyBands();
+        const palette = MODE_PALETTES[this.currentMode];
+
+        // background
+        this.background.draw(palette, bands);
+
+        // transition debris
+        this.transition.update();
+        this.transition.draw();
+
+        // current mode
+        if (this.transition.phase !== 'explode') {
+          this.modes[this.currentMode].update(bands);
+          this.modes[this.currentMode].draw(bands);
+        }
+
+        // mouse trail
+        this.mouseTrail.update(bands);
+        this.mouseTrail.draw(bands);
+
+        requestAnimationFrame(() => this.animate());
+      }
+
+      resize() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+        if (this.modes) {
+          for (const m of this.modes) m.resize();
+        }
+      }
+
+      updatePlayBtn() {
+        const btn = document.getElementById('playBtn');
+        btn.innerHTML = this.audio.isPlaying ? '&#9646;&#9646; Pause' : '&#9654; Play';
+        btn.classList.toggle('active', this.audio.isPlaying);
+      }
+
+      updateTrackBtns() {
+        document.querySelectorAll('.track-btn').forEach(btn => {
+          btn.classList.toggle('active', parseInt(btn.dataset.track) === this.audio.currentTrack);
+        });
+      }
+
+      updateModeButtons() {
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+          btn.classList.toggle('active', parseInt(btn.dataset.mode) === this.currentMode);
+        });
+      }
+
+      bindEvents() {
+        document.getElementById('overlay').addEventListener('click', () => this.start());
+
+        document.getElementById('playBtn').addEventListener('click', () => {
+          if (!this.isStarted) this.start();
+          this.audio.toggle();
+          this.updatePlayBtn();
+        });
+
+        document.getElementById('uploadBtn').addEventListener('click', () => {
+          document.getElementById('fileInput').click();
+        });
+
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          if (!this.isStarted) this.start();
+          await this.audio.loadFile(file);
+          this.updatePlayBtn();
+          this.updateTrackBtns();
+        });
+
+        let textTimeout;
+        document.getElementById('textInput').addEventListener('input', (e) => {
+          clearTimeout(textTimeout);
+          textTimeout = setTimeout(() => {
+            this.modes[0].setText(e.target.value || 'MUSIC');
+          }, 300);
+        });
+
+        document.querySelectorAll('.track-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            if (!this.isStarted) this.start();
+            this.audio.playBuiltinTrack(parseInt(btn.dataset.track));
+            this.updatePlayBtn();
+            this.updateTrackBtns();
+          });
+        });
+
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            if (!this.isStarted) this.start();
+            this.switchMode(parseInt(btn.dataset.mode));
+          });
+        });
+
+        // keyboard
+        document.addEventListener('keydown', (e) => {
+          if (e.target.tagName === 'INPUT') return;
+          switch (e.code) {
+            case 'Space':
+              e.preventDefault();
+              if (!this.isStarted) this.start();
+              this.audio.toggle();
+              this.updatePlayBtn();
+              break;
+            case 'ArrowRight': this.nextMode(); break;
+            case 'ArrowLeft': this.prevMode(); break;
+          }
+        });
+
+        // touch swipe
+        this.canvas.addEventListener('touchstart', (e) => {
+          this.touchStartX = e.touches[0].clientX;
+          this.touchStartY = e.touches[0].clientY;
+        }, { passive: true });
+
+        this.canvas.addEventListener('touchend', (e) => {
+          const dx = e.changedTouches[0].clientX - this.touchStartX;
+          const dy = e.changedTouches[0].clientY - this.touchStartY;
+          if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+            if (dx > 0) this.prevMode();
+            else this.nextMode();
+          }
+        }, { passive: true });
+
+        // click canvas to start
+        this.canvas.addEventListener('click', () => {
+          if (!this.isStarted) this.start();
+        });
+
+        // mouse trail interaction
+        this.canvas.addEventListener('mousedown', (e) => {
+          this.mouseDown = true;
+          const bands = this.audio.getFrequencyBands();
+          this.mouseTrail.emit(e.clientX, e.clientY, bands);
+        });
+        this.canvas.addEventListener('mousemove', (e) => {
+          if (!this.mouseDown) return;
+          const bands = this.audio.getFrequencyBands();
+          this.mouseTrail.emit(e.clientX, e.clientY, bands);
+        });
+        this.canvas.addEventListener('mouseup', () => { this.mouseDown = false; });
+        this.canvas.addEventListener('mouseleave', () => { this.mouseDown = false; });
+
+        // touch trail
+        this.canvas.addEventListener('touchmove', (e) => {
+          if (e.touches.length === 1) {
+            const bands = this.audio.getFrequencyBands();
+            this.mouseTrail.emit(e.touches[0].clientX, e.touches[0].clientY, bands);
+          }
+        }, { passive: true });
+
+        // drag and drop
+        const dropZone = document.getElementById('dropZone');
+        document.addEventListener('dragenter', (e) => { e.preventDefault(); dropZone.classList.add('visible'); });
+        document.addEventListener('dragover', (e) => { e.preventDefault(); });
+        document.addEventListener('dragleave', (e) => { if (!e.relatedTarget) dropZone.classList.remove('visible'); });
+        document.addEventListener('drop', async (e) => {
+          e.preventDefault();
+          dropZone.classList.remove('visible');
+          const file = e.dataTransfer.files[0];
+          if (file && file.type.startsWith('audio/')) {
+            if (!this.isStarted) this.start();
+            await this.audio.loadFile(file);
+            this.updatePlayBtn();
+            this.updateTrackBtns();
+          }
+        });
+
+        window.addEventListener('resize', () => this.resize());
+
+        // show nav hint briefly
+        const navHint = document.getElementById('navHint');
+        navHint.textContent = '← → Switch Mode | Space Play/Pause';
+        setTimeout(() => { navHint.style.opacity = '0'; }, 5000);
+      }
+    }
+
+    const app = new App();
+  })();
+  </script>
+</body>
+</html>
